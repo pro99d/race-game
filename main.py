@@ -7,6 +7,7 @@ import math
 import time
 import os, sys
 
+
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -40,17 +41,6 @@ click_coordinates = []
 
 
 
-def resource_path(relative_path):  # для PyInstaller
-    """ Возвращает путь к ресурсам, упакованным в исполняемый файл. """
-    try:
-        # PyInstaller создает временный каталог sys._MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        # Если программа запущена не из исполняемого файла, используется обычный путь
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-# Классы
 
 class RaceGame(arcade.Window):
     def __init__(self, width, height, title):
@@ -124,10 +114,7 @@ class RaceGame(arcade.Window):
                 child=self.v_box)
         )
         self.time_race = 1
-        # ии
-        # self.ai_count=0
-        # self.ai_players=[]
-        # для физики
+        # физика
         self.player_list = None
         self.wall_list = None
         self.player_sprite = None
@@ -250,7 +237,7 @@ class RaceGame(arcade.Window):
             self.managers.draw()
         elif self.game:
             self.clear
-            arcade.draw_line_strip(sprites, (0, 122, 255), 4)
+            #arcade.draw_line_strip(sprites, (0, 122, 255), 4)
             self.track.draw()
             self.player_list.draw()
             for player in self.players:
@@ -316,21 +303,21 @@ class RaceGame(arcade.Window):
         for i, player in enumerate(self.players):
             current_sprite = player['sprite']
             for j, other_player in enumerate(self.players):
-                if i == j:  # Пропускаем сравнение с самим собой
+                if i == j:  # пропуск сравнения с самим собой
                     continue
-                other_sprite = other_player['sprite']
-                if arcade.check_for_collision(current_sprite, other_sprite):
+                other_sprite = other_player#['sprite']
+                if arcade.check_for_collision(current_sprite, other_sprite["sprite"]):
                     approach_speed = self.calculate_approach_speed(
                         player['speed'], player['current_angle'],
                         other_sprite['speed'], other_sprite['current_angle'],
                         (current_sprite.center_x, current_sprite.center_y),
-                        (other_sprite.center_x, other_sprite.center_y)
+                        (other_sprite["sprite"].center_x, other_sprite["sprite"].center_y)
                     )
-                    # Изменяем скорость и направление после столкновения
+
                     player['speed'] = -player['speed'] * 0.5
                     other_player['speed'] = -other_player['speed'] * 0.5
 
-                    # Обновляем счетчик до взрыва в зависимости от скорости сближения
+
                     if approach_speed <= 0:
                         player['collisions_to_explosion'] += approach_speed
                         other_player['collisions_to_explosion'] += approach_speed
@@ -461,14 +448,12 @@ class RaceGame(arcade.Window):
             {arcade.key.T: 'forward', arcade.key.G: 'backward', arcade.key.F: 'mleft', arcade.key.H: 'mright'},
             {arcade.key.I: 'forward', arcade.key.K: 'backward', arcade.key.J: 'mleft', arcade.key.L: 'mright'}
         ]
-        print(f"клавиша {key} нажата")
         if key == arcade.key.Q:
             self.exit(None)
         if key == arcade.key.TAB and self.game:
             self.cur_player += 1
             self.cur_player %= len(self.players)
         if key == arcade.key.ESCAPE:
-            print(f"клавиша {key} нажата")
             self.set_menu()
         for player in self.players:
             for control_key, control_value in controls[player['sprite'].id].items():
