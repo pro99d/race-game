@@ -6,7 +6,6 @@ from arcade.gui.events import UIOnChangeEvent
 import math
 import time
 import os, sys
-from ray import collide, sprites
 
 # Константы
 
