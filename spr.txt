@@ -1,0 +1,1 @@
+<arcade.sprite.Sprite object at 0x0000013C96D16580>

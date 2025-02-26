@@ -6,8 +6,9 @@ from arcade.gui.events import UIOnChangeEvent
 import math
 import time
 import os, sys
-
-
+import socket
+import json
+import pickle
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -24,7 +25,7 @@ def import_variables(filename):
 
     return variables
 
-variables = import_variables('variables.txt')
+variables = import_variables('variables.dat')
 DRIFT_FACTOR = float(variables["DRIFT_FACTOR"])
 SCREEN_TITLE = "Race Game"
 MAX_SPEED = int(variables['MAX_SPEED'])
@@ -38,13 +39,17 @@ fps = int(variables['fps'])
 click_coordinates = []
 # функции
 
-
-
-
+def send_request(host='127.0.0.1', port=8080, request=None):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((host, port))
+        if request is not None:
+            s.sendall(pickle.dumps(request))
+        data = s.recv(1024)
+        return pickle.loads(data)
 
 class RaceGame(arcade.Window):
     def __init__(self, width, height, title):
-        super().__init__(width, height, title, fullscreen=False)
+        super().__init__(width, height, title, fullscreen=False, resizable=True)
         self.set_update_rate(1 / fps)
         self.ai_list = None
         self.player_list = arcade.SpriteList()
@@ -122,7 +127,7 @@ class RaceGame(arcade.Window):
         self.barrier_list = arcade.SpriteList()
 
         # музыка и эффекты
-        self.music = True
+        self.music = False
         self.start = arcade.load_sound("sounds/click.wav")
         self.explosion = arcade.load_sound("sounds/explosion.wav")
         self.music_in_menu = arcade.load_sound("sounds/menu_music.wav")
@@ -132,7 +137,8 @@ class RaceGame(arcade.Window):
         self.debug = False
         self.start_time = time.time()
         self.players_count = 1
-
+        self.id = int(sys.argv[1])#send_request(request="join")["length"]
+        print(f"игрок {self.id}")
     def menu_music(self):
         if self.menu:
             if self.music:
@@ -169,7 +175,7 @@ class RaceGame(arcade.Window):
 
         self.managers.add(UIAnchorWidget(child=debug_mode, align_y=-100))
         self.managers.add(UIAnchorWidget(child=label_d, align_y=-30))
-        label_ai = UILabel(text="данное устройство не поддерживает ботов")
+        label_ai = UILabel(text="в этой версии нет ботов")
         self.managers.add(UIAnchorWidget(child=label_ai, align_y=-130))
 
     def on_start(self, event):
@@ -180,8 +186,10 @@ class RaceGame(arcade.Window):
             self.players = []
             self.setup()
             arcade.play_sound(self.start)
-            for player in self.players:
-                player['sprite'].center_x, player['sprite'].center_y = self.coordinates[player['sprite'].id]
+            for player in range(len(self.players)):
+                id = int(player)
+                player = self.players[id]
+                player['sprite'].center_x, player['sprite'].center_y = self.coordinates[id]
                 player['speed'] = 0
                 player['current_angle'] = 90
             self.game = True
@@ -193,7 +201,7 @@ class RaceGame(arcade.Window):
         if self.menu:
             arcade.close_window()
 
-    def setup(self, ):
+    def setup(self):
         self.coordinates = [
             (SCREEN_WIDTH / 2 + 517, SCREEN_HEIGHT / 2 - 336),
             (SCREEN_WIDTH / 2 + 547, SCREEN_HEIGHT / 2 - 276),
@@ -211,7 +219,10 @@ class RaceGame(arcade.Window):
             player_sprite.id = i
             self.player_list.append(player_sprite)
             self.players.append({
+                'id':i,
                 'sprite': player_sprite,
+                "x": player_sprite.center_x,
+                "y": player_sprite.center_y,
                 'speed': 0,
                 'angle_speed': 0,
                 'current_angle': 90,
@@ -225,12 +236,50 @@ class RaceGame(arcade.Window):
                 'laps': 0,
                 'checkpoint': False
             })
+        out_points = [
+            (1672, 552), (1534, 893), (1290, 939), (986, 938), (745, 930), (553, 943), (434, 943),
+            (310, 897), (224, 716), (189, 373), (206, 218), (300, 120), (576, 89), (966, 69),
+            (1388, 71), (1511, 91), (1619, 171), (1617, 271), (1610, 319), (1561, 326), (1547, 240),
+            (1479, 173), (1298, 156), (738, 169), (551, 154), (414, 174), (304, 255), (276, 388),
+            (296, 733), (327, 835), (392, 897), (523, 909), (641, 892), (703, 817), (704, 619),
+            (997, 855), (1138, 889), (1375, 880), (1453, 857), (1526, 800), (1582, 676), (1564, 329),
+            (1636, 321), (1672, 552)
+        ]
+        in_points = [
+        (1383, 343), (1378, 407), (1404, 522), (1400, 685), (1190, 708), (1080, 692), (749, 433),
+        (671, 414), (559, 455), (522, 571), (520, 735), (478, 726), (481, 614), (458, 440),
+        (476, 351), (894, 361), (1383, 343)
+        ]
+        self.send = {
+            'id': self.id,
+            'speed': 0,
+            "x":player_sprite.center_x,
+            "y":player_sprite.center_y,
+            'angle_speed': 0,
+            'current_angle': 90,
+            'forward': False,
+            'backward': False,
+            'mleft': False,
+            'mright': False,
+            'collisions_to_explosion': 10,
+            'explosion_time': 0.0,
+            'exploded': False,
+            'laps': 0,
+            'checkpoint': False
+        }
+        out_wall_sprite = arcade.Sprite()
+        out_wall_sprite._points = out_points
+        self.wall_list.append(out_wall_sprite)
+        in_wall_sprite = arcade.Sprite()
+        in_wall_sprite._points = in_points
+        self.wall_list.append(in_wall_sprite)
 
     def set_menu(self):
         self.game = False
         self.menu = True
 
     def on_draw(self):
+        global click_coordinates
         arcade.start_render()
         if self.game_settings:
             self.clear
@@ -248,9 +297,12 @@ class RaceGame(arcade.Window):
             self.clear()
             self.manager.draw()
         if self.debug and self.game:
+            if click_coordinates:
+               arcade.draw_line_strip(click_coordinates, arcade.color.GREEN, 4)
             self.barrier_list.draw_hit_boxes((255, 0, 0), 3)
             self.track.draw_hit_boxes((255, 0, 0), 3)
             self.player_list.draw_hit_boxes((200, 200, 200), 3)
+            self.wall_list.draw_hit_boxes((200, 100, 200), 4)
             # self.ai_list.draw_hit_boxes((100, 200, 255),1)
             arcade.draw_text(f'FPS:{self.FPS}', start_x=10, start_y=SCREEN_HEIGHT - 20, color=(255, 255, 255),
                              font_size=14)
@@ -297,13 +349,13 @@ class RaceGame(arcade.Window):
         else:
             return 0
         return approach_speed
-
+    def update_send(self):
+        self.send = pickle.dumps(self.players[self.id])
     def check_for_collision(self):
-        # Проверка столкновений между игроками
         for i, player in enumerate(self.players):
             current_sprite = player['sprite']
             for j, other_player in enumerate(self.players):
-                if i == j:  # пропуск сравнения с самим собой
+                if i == j: 
                     continue
                 other_sprite = other_player#['sprite']
                 if arcade.check_for_collision(current_sprite, other_sprite["sprite"]):
@@ -338,89 +390,98 @@ class RaceGame(arcade.Window):
         )
         self.manager.add(messagebox)
         self.set_menu()
-
     def update(self, delta_time, ang_sp=4):
         global AX
         self.menu_music()
         self.FPS = 1 / delta_time
         if self.game:
-            for player in self.players:
-                self.physics_engine = arcade.PhysicsEngineSimple(player['sprite'], self.player_sprite)
-                ang_sp = 4
-                if player['speed'] != 0:
-                    radius = abs(player['speed']) / ang_sp
-                    optimal_speed = math.sqrt(radius * g * mu)
-                    if abs(player['speed']) <= optimal_speed:
-                        p = optimal_speed / abs(player['speed'])
-                        ang_sp = player['speed'] * p
-                    elif optimal_speed != 0:
-                        p = abs(player['speed']) / optimal_speed
-                        ang_sp = player['speed'] / p
+            state = send_request(request="request")
+            for i in range(len(self.players)-1):
+                if i==self.id:
+                    continue
+                #print(state, "\n", self.players)
+                if len(state) == len(self.players):
+                    self.players[i] = state[i]
+            player = self.players[self.id]
+            self.physics_engine = arcade.PhysicsEngineSimple(player['sprite'], self.player_sprite)
+            ang_sp = 4
+            if player['speed'] != 0:
+                radius = abs(player['speed']) / ang_sp
+                optimal_speed = math.sqrt(radius * g * mu)
+                if abs(player['speed']) <= optimal_speed:
+                    p = optimal_speed / abs(player['speed'])
+                    ang_sp = player['speed'] * p
+                elif optimal_speed != 0:
+                    p = abs(player['speed']) / optimal_speed
+                    ang_sp = player['speed'] / p
+            else:
+                ang_sp = 0
+            self.player = []
+            self.player.append(player['sprite'])
+            if arcade.check_for_collision_with_list(player['sprite'], self.track):
+                FRICTION = 0.05
+            else:
+                FRICTION = 0.8
+            if player['mleft']:
+                player['current_angle'] += ang_sp
+            elif player['mright']:
+                player['current_angle'] -= ang_sp
+            if player['forward']:
+                if player['speed'] <= MAX_SPEED:
+                    player['speed'] += AX
+            elif player['backward']:
+                if player['speed'] > 0:
+                    player['speed'] -= AX / 3
+                elif -1 <= player['speed'] < 0:
+                    player['speed'] -= AX / 3
                 else:
-                    ang_sp = 0
-                self.player = []
-                self.player.append(player['sprite'])
-                if arcade.check_for_collision_with_list(player['sprite'], self.track):
-                    FRICTION = 0.05
-                else:
-                    FRICTION = 0.8
-                if player['mleft']:
-                    player['current_angle'] += ang_sp
-                elif player['mright']:
-                    player['current_angle'] -= ang_sp
-                if player['forward']:
-                    if player['speed'] <= MAX_SPEED:
-                        player['speed'] += AX
-                elif player['backward']:
-                    if player['speed'] > 0:
-                        player['speed'] -= AX / 3
-                    elif -1 <= player['speed'] < 0:
-                        player['speed'] -= AX / 3
-                    else:
-                        player['speed'] += -1 - player['speed']
-                if 3.7999 <= player['speed'] <= 7.59:
-                    AX = 0.4
-                elif 7.59 < player['speed'] < MAX_SPEED:
-                    AX = 0.6
-                player['speed'] -= player['speed'] * FRICTION
-                if player['collisions_to_explosion'] <= 0:
-                    player['speed'] = 0
-                    if not player['exploded']:
-                        self.explode(player)
-                        player['exploded'] = True
-                self.check_for_collision()
-                player['sprite'].angle = player['current_angle']
-                player['sprite'].change_x = player['speed'] * math.cos(math.radians(player['current_angle']))
-                player['sprite'].change_y = player['speed'] * math.sin(math.radians(player['current_angle']))
-                player['sprite'].center_x += player['sprite'].change_x
-                player['sprite'].center_y += player['sprite'].change_y
-                if player['sprite'].left < 0:
-                    player['sprite'].left = 0
-                elif player['sprite'].right > SCREEN_WIDTH:
-                    player['sprite'].right = SCREEN_WIDTH
-                if player['sprite'].bottom < 0:
-                    player['sprite'].bottom = 0
-                elif player['sprite'].top > SCREEN_HEIGHT:
-                    player['sprite'].top = SCREEN_HEIGHT
-                self.physics_engine.update()
-                if (SCREEN_WIDTH / 2 - 436 <= player['sprite'].center_x <= SCREEN_WIDTH / 2 - 257 and
-                        SCREEN_HEIGHT / 2 - 78 + 200 <= player[
-                            'sprite'].center_y <= SCREEN_HEIGHT / 2 - 78 + 280 + MAX_SPEED):
-                    player['checkpoint'] = True
-                if (SCREEN_WIDTH / 2 + 447 <= player['sprite'].center_x <= SCREEN_WIDTH / 2 + 617 and
-                    SCREEN_HEIGHT / 2 + 17 - 100 <= player[
-                        'sprite'].center_y <= SCREEN_HEIGHT / 2 + 17 + MAX_SPEED - 100) and player['checkpoint']:
-                    player['laps'] += 1
-                    player['checkpoint'] = False
-                if player['exploded']:
-                    player['explosion_time'] += delta_time
-                if player['explosion_time'] >= 10 and player['exploded']:
-                    player['exploded'] = False
-                    player['collisions_to_explosion'] = 10
-                    player['sprite'].center_x, player['sprite'].center_y = self.coordinates[player['sprite'].id]
-                    player['current_angle'] = 90
-                    player['speed'] = 0
-        if time.time() - self.start_time > self.time_race * 60 and self.game:
+                    player['speed'] += -1 - player['speed']
+            if 3.7999 <= player['speed'] <= 7.59:
+                AX = 0.4
+            elif 7.59 < player['speed'] < MAX_SPEED:
+                AX = 0.6
+            player['speed'] -= player['speed'] * FRICTION
+            if player['collisions_to_explosion'] <= 0:
+                player['speed'] = 0
+                if not player['exploded']:
+                    self.explode(player)
+                    player['exploded'] = True
+            self.check_for_collision()
+            player['sprite'].angle = player['current_angle']
+            player['sprite'].change_x = player['speed'] * math.cos(math.radians(player['current_angle']))
+            player['sprite'].change_y = player['speed'] * math.sin(math.radians(player['current_angle']))
+            player['sprite'].center_x += player['sprite'].change_x
+            player['sprite'].center_y += player['sprite'].change_y
+            if player['sprite'].left < 0:
+                player['sprite'].left = 0
+            elif player['sprite'].right > SCREEN_WIDTH:
+                player['sprite'].right = SCREEN_WIDTH
+            if player['sprite'].bottom < 0:
+                player['sprite'].bottom = 0
+            elif player['sprite'].top > SCREEN_HEIGHT:
+                player['sprite'].top = SCREEN_HEIGHT
+            self.physics_engine.update()
+            if (SCREEN_WIDTH / 2 - 436 <= player['sprite'].center_x <= SCREEN_WIDTH / 2 - 257 and
+                    SCREEN_HEIGHT / 2 - 78 + 200 <= player[
+                        'sprite'].center_y <= SCREEN_HEIGHT / 2 - 78 + 280 + MAX_SPEED):
+                player['checkpoint'] = True
+            if (SCREEN_WIDTH / 2 + 447 <= player['sprite'].center_x <= SCREEN_WIDTH / 2 + 617 and
+                SCREEN_HEIGHT / 2 + 17 - 100 <= player[
+                    'sprite'].center_y <= SCREEN_HEIGHT / 2 + 17 + MAX_SPEED - 100) and player['checkpoint']:
+                player['laps'] += 1
+                player['checkpoint'] = False
+            if player['exploded']:
+                player['explosion_time'] += delta_time
+            if player['explosion_time'] >= 10 and player['exploded']:
+                player['exploded'] = False
+                player['collisions_to_explosion'] = 10
+                player['sprite'].center_x, player['sprite'].center_y = self.coordinates[player['sprite'].id]
+                player['current_angle'] = 90
+                player['speed'] = 0
+                self.update_send()
+                print(self.send)
+                send_request(request=self.send)
+        if time.time() - self.start_time > self.time_race * 60 and self.game and False: #TODO remove "and False"
             self.end_game()
 
     def on_mouse_press(self, x, y, button, modifiers):
@@ -429,6 +490,8 @@ class RaceGame(arcade.Window):
             if button == arcade.MOUSE_BUTTON_LEFT:
                 # Добавление координат левого клика в список
                 click_coordinates.append((x, y))
+            elif button == arcade.MOUSE_BUTTON_MIDDLE:
+                click_coordinates=click_coordinates[:-1]
             elif button == arcade.MOUSE_BUTTON_RIGHT:
                 # Вывод списка координат в файл, разделяя точками, и переход на новую строку
                 with open('click_coordinates.txt', 'a') as file:
