@@ -4,7 +4,6 @@ pip~=23.2.1
 attrs~=24.2.0
 wheel~=0.41.2
 setuptools~=68.2.0
-numpy~=2.2.2
 pyglet~=2.0.dev23
 arcade~=2.6.17
 pymunk~=6.4.0

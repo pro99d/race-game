@@ -1,14 +1,12 @@
 import socket
 import json, pickle
 
-from fontTools.ttLib.ttGlyphSet import LerpGlyph
-
 # Состояние сервера (словарь с ID пользователей)
 state = {}
 
 def handle_request(request):
     global state
-    if isinstance(request, dict):
+    if type(request) is dict:
         user_id = request.get("id")
         if user_id is None:
             return {"error": "ID is required"}
@@ -19,8 +17,10 @@ def handle_request(request):
 
     elif request == "request":
         # Отправка текущего состояния
+        print(state)
         return {"status": "State requested", "state": state}
-
+    elif request == "clear":
+        state = {}
     elif request == "join":
         # Отправка длины состояния
         return {"status": "Join requested", "length": len(state)}
@@ -41,7 +41,7 @@ def start_server(host='127.0.0.1', port=8080):
                 try:
                     request = pickle.loads(data)
                     response = handle_request(request)
-                    print(response)
+                    #print(response)
                     conn.sendall(pickle.dumps(response))
                 except json.JSONDecodeError:
                     conn.sendall(pickle.dumps({"error": "Invalid JSON"}).encode('utf-8'))

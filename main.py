@@ -302,7 +302,7 @@ class RaceGame(arcade.Window):
             self.barrier_list.draw_hit_boxes((255, 0, 0), 3)
             self.track.draw_hit_boxes((255, 0, 0), 3)
             self.player_list.draw_hit_boxes((200, 200, 200), 3)
-            self.wall_list.draw_hit_boxes((200, 100, 200), 4)
+            #self.wall_list.draw_hit_boxes((200, 100, 200), 4)
             # self.ai_list.draw_hit_boxes((100, 200, 255),1)
             arcade.draw_text(f'FPS:{self.FPS}', start_x=10, start_y=SCREEN_HEIGHT - 20, color=(255, 255, 255),
                              font_size=14)
@@ -350,7 +350,13 @@ class RaceGame(arcade.Window):
             return 0
         return approach_speed
     def update_send(self):
-        self.send = pickle.dumps(self.players[self.id])
+        send_ws = {}
+        for i in self.players[self.id]:
+            if i != "sprite":
+                send_ws[i] = self.players[self.id][i]
+        #send_ws = [self.players[self.id][i] if i!="sprite" else None for i in self.players]
+        self.send = pickle.dumps(send_ws)
+
     def check_for_collision(self):
         for i, player in enumerate(self.players):
             current_sprite = player['sprite']
@@ -401,7 +407,8 @@ class RaceGame(arcade.Window):
                     continue
                 #print(state, "\n", self.players)
                 if len(state) == len(self.players):
-                    self.players[i] = state[i]
+                    if state[i]:
+                        self.players[i] = state[i]
             player = self.players[self.id]
             self.physics_engine = arcade.PhysicsEngineSimple(player['sprite'], self.player_sprite)
             ang_sp = 4
@@ -478,9 +485,8 @@ class RaceGame(arcade.Window):
                 player['sprite'].center_x, player['sprite'].center_y = self.coordinates[player['sprite'].id]
                 player['current_angle'] = 90
                 player['speed'] = 0
-                self.update_send()
-                print(self.send)
-                send_request(request=self.send)
+            self.update_send()
+            send_request(request=self.send)
         if time.time() - self.start_time > self.time_race * 60 and self.game and False: #TODO remove "and False"
             self.end_game()
 
