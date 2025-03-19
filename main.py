@@ -8,7 +8,7 @@ import time
 import os, sys
 import socket
 import json
-
+import multiplayer.bytelib
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -116,12 +116,19 @@ class RaceGame(arcade.Window):
             texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/close.png"))
         self.v_box.add(quit_button.with_space_around(bottom=20))
 
-        start_button.on_click = self.on_start
+        @start_button.event("on_click")
+        def wrap(event):
+            if self.menu:
+                self.on_start(event)
         @quit_button.event("on_click")
         def wrap(event):
-            print("выход")
-            arcade.exit()
-        settings_button.on_click = self.show_start_window
+            if self.menu:
+                print("выход")
+                arcade.exit()
+        @settings_button.event("on_click")
+        def wrap(event):
+            if self.menu:
+                self.show_start_window(event)
         self.manager.add(
             arcade.gui.UIAnchorWidget(
                 anchor_x="center_x",
@@ -158,7 +165,7 @@ class RaceGame(arcade.Window):
 
         #повтор
         self.replay_state = {
-            "capture": False,
+            "record": False,
             "play": False,
             "name": "test1.repl",
             "replay":[]
@@ -194,9 +201,10 @@ class RaceGame(arcade.Window):
 
         @ui_slider.event()
         def on_change(event: UIOnChangeEvent):
-            label.text = f"игроков:{ui_slider.value:1.0f}"
-            label.fit_content()
-            self.players_count = round(ui_slider.value)
+            if self.game_settings:
+                label.text = f"игроков:{ui_slider.value:1.0f}"
+                label.fit_content()
+                self.players_count = round(ui_slider.value)
 
         box.add(child=label.with_space_around(bottom=10))
         box.add(child=ui_slider.with_space_around(bottom=20))
@@ -210,42 +218,45 @@ class RaceGame(arcade.Window):
 
         @sound.event("on_click")
         def on_change(event):
-            self.music = not self.music
-            if self.debug:
-                sound.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/music_on.png")
-            else:
-                sound.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/music_off.png")
+            if self.game_settings:
+                self.music = not self.music
+                if self.debug:
+                    sound.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/music_on.png")
+                else:
+                    sound.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/music_off.png")
 
         @back.event("on_click")
         def back_f(event):
-            self.set_menu()
+            if self.game_settings:
+                self.set_menu()
 
         @debug_mode.event("on_click")
         def on_change(event):
-            self.debug = not self.debug
-            if self.debug:
-                debug_mode.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/checked.png")
-            else:
-                debug_mode.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
+            if self.game_settings:
+                self.debug = not self.debug
+                if self.debug:
+                    debug_mode.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/checked.png")
+                else:
+                    debug_mode.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
 
         replay_cap = arcade.gui.UITextureButton(texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
         @replay_cap.event("on_click")
         def on_change(event):
-            self.replay_state['capture'] = not self.replay_state['capture']
-            if self.replay_state['capture']:
-                replay_cap.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/checked.png")
-            else:
-                replay_cap.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
-            print(self.replay_state)
+            if self.game_settings:
+                self.replay_state['record'] = not self.replay_state['record']
+                if self.replay_state['record']:
+                    replay_cap.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/checked.png")
+                else:
+                    replay_cap.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
         replay_play = arcade.gui.UITextureButton(texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
         @replay_play.event("on_click")
         def on_change(event):
-            self.replay_state['play'] = not self.replay_state['play']
-            if self.replay_state['play']:
-                replay_play.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/checked.png")
-            else:
-                replay_play.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
-            print(self.replay_state)
+            if self.game_settings:
+                self.replay_state['play'] = not self.replay_state['play']
+                if self.replay_state['play']:
+                    replay_play.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/checked.png")
+                else:
+                    replay_play.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
 
 
         # self.managers.add(UIAnchorWidget(child=sound, align_y=90)) #TODO add sound controller
@@ -258,6 +269,7 @@ class RaceGame(arcade.Window):
         label_ai = UILabel(text="в этой версии нет ботов")
         box.add(child=label_ai.with_space_around(bottom=20))
         box.add(child=back.with_space_around(bottom=20))
+        w, h = super().width, super().height
         self.managers.add(UIAnchorWidget(anchor_x="center_x", anchor_y="center_y", child=box))
     def on_start(self, event):
         self.game_settings = False
@@ -359,10 +371,9 @@ class RaceGame(arcade.Window):
     def set_menu(self):
         self.game = False
         self.menu = True
+        self.managers.disable()
         self.manager.enable()
         self.game_settings = False
-        self.managers.disable()
-        print(self.manager)
 
     def on_draw(self):
         global click_coordinates
@@ -370,6 +381,7 @@ class RaceGame(arcade.Window):
         if self.game_settings:
             self.clear
             self.managers.draw()
+            #self.manager.draw()
         elif self.game:
             self.clear
             # arcade.draw_line_strip(sprites, (0, 122, 255), 4)
@@ -440,11 +452,8 @@ class RaceGame(arcade.Window):
         return approach_speed
 
     def update_send(self):
-        for n in self.players[self.id]:
-            if n != "sprite":
-                self.send[n] = self.players[self.id][n]
-        self.send['x'] = self.players[self.id]['sprite'].center_x
-        self.send['y'] = self.players[self.id]['sprite'].center_y
+        player = self.players[self.id]
+        self.send = multiplayer.bytelib.to_bytes(self.id, player["forward"], player['forward'], player['backward'], player['mleft'], player['mright'])
 
     def check_for_collision(self):
         for i, player in enumerate(self.players):
@@ -472,8 +481,9 @@ class RaceGame(arcade.Window):
                         other_player['collisions_to_explosion'] -= approach_speed
 
     def end_game(self):
-        with open(self.replay_state['name'], "w") as f:
-            json.dump(self.replay_state['replay'], f)
+        if self.replay_state["record"]:
+            with open(self.replay_state['name'], "w") as f:
+                json.dump(self.replay_state['replay'], f)
         best_player = max(self.players, key=lambda player: player['laps'])
         message = f"Игрок с наилучшим результатом: {best_player['sprite'].id + 1}, его результат - {best_player['laps']}"
         messagebox = arcade.gui.UIMessageBox(
@@ -496,11 +506,11 @@ class RaceGame(arcade.Window):
         if self.game:
             if self.multiplayer:
                 self.update_pos()
-            if self.replay_state['capture']:
+            if self.replay_state['record']:
                 state = {}
             for i in range(len(self.players)):
                 player = self.players[i]
-                if self.replay_state['capture']:
+                if self.replay_state['record']:
                     state[i] = (player['forward'], player['backward'], player['mleft'], player['mright'])
                 if self.replay_state["play"]:
                     if not self.replay_state['replay']:
@@ -579,7 +589,7 @@ class RaceGame(arcade.Window):
                     player['sprite'].center_x, player['sprite'].center_y = self.coordinates[player['sprite'].id]
                     player['current_angle'] = 90
                     player['speed'] = 0
-                if self.replay_state['capture']:
+                if self.replay_state['record']:
                     self.replay_state['replay'].append(state)
             if self.multiplayer:
                 self.cor()
