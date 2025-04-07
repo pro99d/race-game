@@ -206,8 +206,8 @@ class RaceGame(arcade.Window):
                 label.fit_content()
                 self.players_count = round(ui_slider.value)
 
-        box.add(child=label.with_space_around(bottom=10))
-        box.add(child=ui_slider.with_space_around(bottom=20))
+        box.add(child=label.with_space_around(left=100,bottom=10))
+        box.add(child=ui_slider.with_space_around(left=100,bottom=20))
         debug_mode = arcade.gui.UITextureButton(
             texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
         label_d = UILabel(text=f"режим отладки")
@@ -260,15 +260,15 @@ class RaceGame(arcade.Window):
 
 
         # self.managers.add(UIAnchorWidget(child=sound, align_y=90)) #TODO add sound controller
-        box.add(child=label_d.with_space_around(bottom=20))
-        box.add(child=debug_mode.with_space_around(bottom=20))
-        box.add(child=UILabel(text="захват повтора").with_space_around(bottom=10))
-        box.add(child=replay_cap.with_space_around(bottom=20))
-        box.add(child=UILabel(text="просмотр повтора").with_space_around(bottom=10))
-        box.add(child=replay_play.with_space_around(bottom=20))
+        box.add(child=label_d.with_space_around(left=100,bottom=20))
+        box.add(child=debug_mode.with_space_around(left=100,bottom=20))
+        box.add(child=UILabel(text="захват повтора").with_space_around(left=100,bottom=10))
+        box.add(child=replay_cap.with_space_around(left=100,bottom=20))
+        box.add(child=UILabel(text="просмотр повтора").with_space_around(left=100,bottom=10))
+        box.add(child=replay_play.with_space_around(left=100,bottom=20))
         label_ai = UILabel(text="в этой версии нет ботов")
-        box.add(child=label_ai.with_space_around(bottom=20))
-        box.add(child=back.with_space_around(bottom=20))
+        box.add(child=label_ai.with_space_around(left=100,bottom=20))
+        box.add(child=back.with_space_around(left=100,bottom=20))
         w, h = super().width, super().height
         self.managers.add(UIAnchorWidget(anchor_x="center_x", anchor_y="center_y", child=box))
     def on_start(self, event):
