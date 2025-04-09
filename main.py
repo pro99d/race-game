@@ -6,9 +6,9 @@ from arcade.gui.events import UIOnChangeEvent
 import math
 import time
 import os, sys
-import socket
-import json
-import multiplayer.bytelib
+#import socket
+#import json
+#import multiplayer.bytelib
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -40,7 +40,7 @@ click_coordinates = []
 
 
 # функции
-
+"""
 def send_request(host='127.0.0.1', port=8080, request=None):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
@@ -48,7 +48,7 @@ def send_request(host='127.0.0.1', port=8080, request=None):
             s.sendall(json.dumps(request).encode('utf-8'))
         data = s.recv(1024).decode('utf-8')
         return json.loads(data)
-
+"""
 
 class RaceGame(arcade.Window):
     def __init__(self, width, height, title):
