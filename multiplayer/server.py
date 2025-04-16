@@ -1,32 +1,13 @@
 import socket
 import json, pickle
-
+from bytelib import *
 # Состояние сервера (словарь с ID пользователей)
 state = {}
 
 def handle_request(request):
     global state
-    if type(request) is dict:
-        user_id = request.get("id")
-        if user_id is None:
-            return {"error": "ID is required"}
-
-        # Обновление состояния при получении словаря
-        state[user_id] = request
-        return {"status": "State updated", "state": state}
-
-    elif request == "request":
-        # Отправка текущего состояния
-        print(state)
-        return {"status": "State requested", "state": state}
-    elif request == "clear":
-        state = {}
-    elif request == "join":
-        # Отправка длины состояния
-        return {"status": "Join requested", "length": len(state)}
-    else:
-        return {"error": "Invalid request"}
-
+    r = request
+    return {"id":r[0], "forward":r[1], "backward":r[2], "mleft":r[3], "mright":r[4]}
 
 def start_server(host='127.0.0.1', port=8080):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -36,11 +17,13 @@ def start_server(host='127.0.0.1', port=8080):
         while True:
             conn, addr = s.accept()
             with conn:
-                print(f"Connected by {addr}")
+                #print(f"Connected by {addr}")
                 data = conn.recv(1024)
                 try:
-                    request = pickle.loads(data)
+                    request = from_bytes(data) 
                     response = handle_request(request)
+                    state[response["id"]] = response
+                    r = [to_bytes(i["id"], i["forward"], i["backward"], i["mleft"], i["mright"]) for i in state.values()]
                     #print(response)
                     conn.sendall(pickle.dumps(response))
                 except json.JSONDecodeError:

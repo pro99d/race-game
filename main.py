@@ -161,8 +161,8 @@ class RaceGame(arcade.Window):
         if self.multiplayer:
             self.id = int(sys.argv[1])  # send_request(request="join")["length"]
             print(f"игрок {self.id}")
-
-
+        self.camera = arcade.Camera()
+        self.camera.use()
         #повтор
         self.replay_state = {
             "record": False,
@@ -262,7 +262,7 @@ class RaceGame(arcade.Window):
         # self.managers.add(UIAnchorWidget(child=sound, align_y=90)) #TODO add sound controller
         box.add(child=label_d.with_space_around(left=100,bottom=20))
         box.add(child=debug_mode.with_space_around(left=100,bottom=20))
-        box.add(child=UILabel(text="захват повтора").with_space_around(left=100,bottom=10))
+        box.add(child=UILabel(text="запись повтора").with_space_around(left=100,bottom=10))
         box.add(child=replay_cap.with_space_around(left=100,bottom=20))
         box.add(child=UILabel(text="просмотр повтора").with_space_around(left=100,bottom=10))
         box.add(child=replay_play.with_space_around(left=100,bottom=20))
@@ -504,6 +504,8 @@ class RaceGame(arcade.Window):
         self.menu_music()
         self.FPS = 1 / delta_time
         if self.game:
+            spl = self.players[self.id]["sprite"]
+            self.camera.move((spl.center_x, spl.center_y))
             if self.multiplayer:
                 self.update_pos()
             if self.replay_state['record']:
@@ -593,7 +595,8 @@ class RaceGame(arcade.Window):
                     self.replay_state['replay'].append(state)
             if self.multiplayer:
                 self.cor()
-
+        elif self.menu:
+            self.camera.move((0, 0))
         if time.time() - self.start_time > self.time_race * 60 and self.game:# and False:  # TODO remove "and False"
             self.end_game()
 
