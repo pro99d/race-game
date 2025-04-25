@@ -9,6 +9,7 @@ import os, sys
 import socket
 import json
 import multiplayer.bytelib
+
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -25,6 +26,9 @@ def import_variables(filename):
 
     return variables
 
+with open("multiplayer.json", "r") as file:
+    settings = json.loads(file.read())
+
 
 variables = import_variables('variables.dat')
 DRIFT_FACTOR = float(variables["DRIFT_FACTOR"])
@@ -40,7 +44,6 @@ click_coordinates = []
 
 
 # функции
-"""
 def send_request(host='127.0.0.1', port=8080, request=None):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
@@ -48,7 +51,7 @@ def send_request(host='127.0.0.1', port=8080, request=None):
             s.sendall(json.dumps(request).encode('utf-8'))
         data = s.recv(1024).decode('utf-8')
         return json.loads(data)
-"""
+
 
 class RaceGame(arcade.Window):
     def __init__(self, width, height, title):
@@ -120,15 +123,18 @@ class RaceGame(arcade.Window):
         def wrap(event):
             if self.menu:
                 self.on_start(event)
+
         @quit_button.event("on_click")
         def wrap(event):
             if self.menu:
                 print("выход")
                 arcade.exit()
+
         @settings_button.event("on_click")
         def wrap(event):
             if self.menu:
                 self.show_start_window(event)
+
         self.manager.add(
             arcade.gui.UIAnchorWidget(
                 anchor_x="center_x",
@@ -155,20 +161,20 @@ class RaceGame(arcade.Window):
         self.debug = False
         self.start_time = time.time()
         # print(f"игрок {self.id}")
-        self.multiplayer = False
+        self.multiplayer = True
         if self.multiplayer:
-            self.id = int(sys.argv[1])  # send_request(request="join")["length"]
+            self.id = 0  # int(sys.argv[1])  # send_request(request="join")["length"]
             print(f"игрок {self.id}")
         self.camera = arcade.Camera()
-        #повтор
+        # повтор
         self.replay_state = {
             "record": False,
             "play": False,
             "name": "test1.repl",
-            "replay":[]
+            "replay": []
         }
         self.frame = 0
-        #мультиплеер
+        # мультиплеер
         self.controls = [
             {arcade.key.W: 'forward', arcade.key.S: 'backward', arcade.key.A: 'mleft', arcade.key.D: 'mright'},
             {arcade.key.UP: 'forward', arcade.key.DOWN: 'backward', arcade.key.LEFT: 'mleft',
@@ -181,9 +187,10 @@ class RaceGame(arcade.Window):
         self.multiplayer_controls = [
             {"forward": False, "backward": False, "mleft": False, "mright": False},
             {"forward": False, "backward": False, "mleft": False, "mright": False},
-            {"forward": False, "backward": False, "mleft": False, "mright": False,
+            {"forward": False, "backward": False, "mleft": False, "mright": False},
             {"forward": False, "backward": False, "mleft": False, "mright": False}
         ]
+
     def switch_layout(self, layout):
         pass
 
@@ -198,7 +205,7 @@ class RaceGame(arcade.Window):
             if ID == self.id:
                 continue
             for control_key, control_value in self.controls[ID].items():
-                    player[control_value] = self.multiplayer_controls[ID][control_value]
+                player[control_value] = self.multiplayer_controls[ID][control_value]
 
     def show_start_window(self, event):
         arcade.play_sound(self.start)
@@ -218,8 +225,8 @@ class RaceGame(arcade.Window):
                 label.fit_content()
                 self.players_count = round(ui_slider.value)
 
-        box.add(child=label.with_space_around(left=100,bottom=10))
-        box.add(child=ui_slider.with_space_around(left=100,bottom=20))
+        box.add(child=label.with_space_around(left=100, bottom=10))
+        box.add(child=ui_slider.with_space_around(left=100, bottom=20))
         debug_mode = arcade.gui.UITextureButton(
             texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
         label_d = UILabel(text=f"режим отладки")
@@ -251,7 +258,9 @@ class RaceGame(arcade.Window):
                 else:
                     debug_mode.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
 
-        replay_cap = arcade.gui.UITextureButton(texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
+        replay_cap = arcade.gui.UITextureButton(
+            texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
+
         @replay_cap.event("on_click")
         def on_change(event):
             if self.game_settings:
@@ -260,7 +269,10 @@ class RaceGame(arcade.Window):
                     replay_cap.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/checked.png")
                 else:
                     replay_cap.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
-        replay_play = arcade.gui.UITextureButton(texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
+
+        replay_play = arcade.gui.UITextureButton(
+            texture=arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png"))
+
         @replay_play.event("on_click")
         def on_change(event):
             if self.game_settings:
@@ -270,19 +282,19 @@ class RaceGame(arcade.Window):
                 else:
                     replay_play.texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/unchecked.png")
 
-
         # self.managers.add(UIAnchorWidget(child=sound, align_y=90)) #TODO add sound controller
-        box.add(child=label_d.with_space_around(left=100,bottom=20))
-        box.add(child=debug_mode.with_space_around(left=100,bottom=20))
-        box.add(child=UILabel(text="запись повтора").with_space_around(left=100,bottom=10))
-        box.add(child=replay_cap.with_space_around(left=100,bottom=20))
-        box.add(child=UILabel(text="просмотр повтора").with_space_around(left=100,bottom=10))
-        box.add(child=replay_play.with_space_around(left=100,bottom=20))
+        box.add(child=label_d.with_space_around(left=100, bottom=20))
+        box.add(child=debug_mode.with_space_around(left=100, bottom=20))
+        box.add(child=UILabel(text="запись повтора").with_space_around(left=100, bottom=10))
+        box.add(child=replay_cap.with_space_around(left=100, bottom=20))
+        box.add(child=UILabel(text="просмотр повтора").with_space_around(left=100, bottom=10))
+        box.add(child=replay_play.with_space_around(left=100, bottom=20))
         label_ai = UILabel(text="в этой версии нет ботов")
-        box.add(child=label_ai.with_space_around(left=100,bottom=20))
-        box.add(child=back.with_space_around(left=100,bottom=20))
+        box.add(child=label_ai.with_space_around(left=100, bottom=20))
+        box.add(child=back.with_space_around(left=100, bottom=20))
         w, h = super().width, super().height
         self.managers.add(UIAnchorWidget(anchor_x="center_x", anchor_y="center_y", child=box))
+
     def on_start(self, event):
         self.game_settings = False
         self.frame = 0
@@ -393,7 +405,7 @@ class RaceGame(arcade.Window):
         if self.game_settings:
             self.clear
             self.managers.draw()
-            #self.manager.draw()
+            # self.manager.draw()
         elif self.game:
             self.clear
             self.camera.use()
@@ -466,7 +478,8 @@ class RaceGame(arcade.Window):
 
     def update_send(self):
         player = self.players[self.id]
-        self.send = multiplayer.bytelib.to_bytes(self.id, player["forward"], player['forward'], player['backward'], player['mleft'], player['mright'])
+        self.send = multiplayer.bytelib.to_bytes(self.id, player['forward'], player['backward'], player['mleft'],
+                                                 player['mright'])
 
     def check_for_collision(self):
         for i, player in enumerate(self.players):
@@ -502,23 +515,25 @@ class RaceGame(arcade.Window):
         messagebox = arcade.gui.UIMessageBox(
             width=300,
             height=200,
-            message_text=(#
+            message_text=(  #
                 message
             ),
             buttons=["Ok"]
         )
         self.manager.add(messagebox)
         self.set_menu()
+
     def load_replay(self, name):
         with open(name, "r") as f:
             self.replay_state['replay'] = json.load(f)
+
     def update(self, delta_time, ang_sp=4):
         global AX
         self.menu_music()
         self.FPS = 1 / delta_time
         if self.game:
             spl = self.players[self.id]["sprite"]
-            self.camera.move_to((spl.center_x-self.width/2, spl.center_y-self.height/2), 0.5)
+            self.camera.move_to((spl.center_x - self.width / 2, spl.center_y - self.height / 2), 0.5)
             if self.multiplayer:
                 self.update_pos()
             if self.replay_state['record']:
@@ -530,8 +545,9 @@ class RaceGame(arcade.Window):
                 if self.replay_state["play"]:
                     if not self.replay_state['replay']:
                         self.load_replay(self.replay_state['name'])
-                    player['forward'], player['backward'], player['mleft'], player['mright'] = self.replay_state['replay'][self.frame][str(i)]
-                    self.frame+=1
+                    player['forward'], player['backward'], player['mleft'], player['mright'] = \
+                    self.replay_state['replay'][self.frame][str(i)]
+                    self.frame += 1
                 self.physics_engine = arcade.PhysicsEngineSimple(player['sprite'], self.player_sprite)
                 ang_sp = 4
                 if player['speed'] != 0:
@@ -610,12 +626,12 @@ class RaceGame(arcade.Window):
                 self.cor()
         elif self.menu:
             self.camera.move((0, 0))
-        if time.time() - self.start_time > self.time_race * 60 and self.game:# and False:  # TODO remove "and False"
+        if time.time() - self.start_time > self.time_race * 60 and self.game:  # and False:  # TODO добавить ограничение времени
             self.end_game()
 
     def cor(self):
         self.update_send()
-        send_request(request=self.send)
+        # send_request(host=settings['host"], port=settings["port"],request=self.send)#TODO fix server
 
     def on_mouse_press(self, x, y, button, modifiers):
         global click_coordinates
