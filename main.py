@@ -154,15 +154,12 @@ class RaceGame(arcade.Window):
         self.cur_player = 0
         self.debug = False
         self.start_time = time.time()
-        self.players_count = 1
-        self.id = 0  # int(sys.argv[1])#send_request(request="join")["length"]
         # print(f"игрок {self.id}")
         self.multiplayer = False
         if self.multiplayer:
             self.id = int(sys.argv[1])  # send_request(request="join")["length"]
             print(f"игрок {self.id}")
         self.camera = arcade.Camera()
-        self.camera.use()
         #повтор
         self.replay_state = {
             "record": False,
@@ -171,7 +168,22 @@ class RaceGame(arcade.Window):
             "replay":[]
         }
         self.frame = 0
-
+        #мультиплеер
+        self.controls = [
+            {arcade.key.W: 'forward', arcade.key.S: 'backward', arcade.key.A: 'mleft', arcade.key.D: 'mright'},
+            {arcade.key.UP: 'forward', arcade.key.DOWN: 'backward', arcade.key.LEFT: 'mleft',
+             arcade.key.RIGHT: 'mright'},
+            {arcade.key.T: 'forward', arcade.key.G: 'backward', arcade.key.F: 'mleft', arcade.key.H: 'mright'},
+            {arcade.key.I: 'forward', arcade.key.K: 'backward', arcade.key.J: 'mleft', arcade.key.L: 'mright'}
+        ]
+        self.players_count = 1
+        self.id = 0  # int(sys.argv[1])#send_request(request="join")["length"]
+        self.multiplayer_controls = [
+            {"forward": False, "backward": False, "mleft": False, "mright": False},
+            {"forward": False, "backward": False, "mleft": False, "mright": False},
+            {"forward": False, "backward": False, "mleft": False, "mright": False,
+            {"forward": False, "backward": False, "mleft": False, "mright": False}
+        ]
     def switch_layout(self, layout):
         pass
 
@@ -181,12 +193,10 @@ class RaceGame(arcade.Window):
             arcade.stop_sound(mus)
 
     def update_pos(self):
-        state = send_request(request="request")["state"]
-        for i in range(len(state)):
-            if i != self.id:
-                self.players[i].update(state[i])
-            else:
-                continue
+        for player in self.players:
+            ID = player['sprite'].id
+            for control_key, control_value in self.controls[ID].items():
+                    player[control_value] = self.multiplayer_controls[ID][control_value]
 
     def show_start_window(self, event):
         arcade.play_sound(self.start)
@@ -384,6 +394,7 @@ class RaceGame(arcade.Window):
             #self.manager.draw()
         elif self.game:
             self.clear
+            self.camera.use()
             # arcade.draw_line_strip(sprites, (0, 122, 255), 4)
             self.track.draw()
             self.player_list.draw()
@@ -505,7 +516,7 @@ class RaceGame(arcade.Window):
         self.FPS = 1 / delta_time
         if self.game:
             spl = self.players[self.id]["sprite"]
-            self.camera.move((spl.center_x, spl.center_y))
+            self.camera.move_to((spl.center_x-self.width/2, spl.center_y-self.height/2), 0.5)
             if self.multiplayer:
                 self.update_pos()
             if self.replay_state['record']:
@@ -624,13 +635,6 @@ class RaceGame(arcade.Window):
         self.menu = True
 
     def on_key_press(self, key, modifiers):
-        controls = [
-            {arcade.key.W: 'forward', arcade.key.S: 'backward', arcade.key.A: 'mleft', arcade.key.D: 'mright'},
-            {arcade.key.UP: 'forward', arcade.key.DOWN: 'backward', arcade.key.LEFT: 'mleft',
-             arcade.key.RIGHT: 'mright'},
-            {arcade.key.T: 'forward', arcade.key.G: 'backward', arcade.key.F: 'mleft', arcade.key.H: 'mright'},
-            {arcade.key.I: 'forward', arcade.key.K: 'backward', arcade.key.J: 'mleft', arcade.key.L: 'mright'}
-        ]
         if key == arcade.key.Q:
             self.exit(None)
         if key == arcade.key.TAB and self.game:
@@ -639,20 +643,13 @@ class RaceGame(arcade.Window):
         if key == arcade.key.ESCAPE:
             self.set_menu()
         for player in self.players:
-            for control_key, control_value in controls[player['sprite'].id].items():
+            for control_key, control_value in self.controls[player['sprite'].id].items():
                 if key == control_key:
                     player[control_value] = True
 
     def on_key_release(self, key, modifiers):
-        controls = [
-            {arcade.key.W: 'forward', arcade.key.S: 'backward', arcade.key.A: 'mleft', arcade.key.D: 'mright'},
-            {arcade.key.UP: 'forward', arcade.key.DOWN: 'backward', arcade.key.LEFT: 'mleft',
-             arcade.key.RIGHT: 'mright'},
-            {arcade.key.T: 'forward', arcade.key.G: 'backward', arcade.key.F: 'mleft', arcade.key.H: 'mright'},
-            {arcade.key.I: 'forward', arcade.key.K: 'backward', arcade.key.J: 'mleft', arcade.key.L: 'mright'}
-        ]
         for player in self.players:
-            for control_key, control_value in controls[player['sprite'].id].items():
+            for control_key, control_value in self.controls[player['sprite'].id].items():
                 if key == control_key:
                     player[control_value] = False
 
