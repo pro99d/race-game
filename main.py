@@ -6,9 +6,9 @@ from arcade.gui.events import UIOnChangeEvent
 import math
 import time
 import os, sys
-#import socket
-#import json
-#import multiplayer.bytelib
+import socket
+import json
+import multiplayer.bytelib
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -195,6 +195,8 @@ class RaceGame(arcade.Window):
     def update_pos(self):
         for player in self.players:
             ID = player['sprite'].id
+            if ID == self.id:
+                continue
             for control_key, control_value in self.controls[ID].items():
                     player[control_value] = self.multiplayer_controls[ID][control_value]
 
