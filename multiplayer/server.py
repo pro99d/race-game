@@ -2,17 +2,29 @@ import socket
 import json, pickle
 from bytelib import *
 import requests
-# Состояние сервера (словарь с ID пользователей)
-state = {}
+PLAYERS_COUNT = 0
+
+def setup():
+    state = [{"id":i, "forward":False, "backward":False, "mleft":False, "mright":False, "connected":False} for i in range(4)]
+    PLAYERS_COUNT = 0
 
 def handle_request(request):
     global state
-    r = request
-    state[r[0]] =  {"forward":r[1], "backward":r[2], "mleft":r[3], "mright":r[4]}
-    return {"id":r[0], "forward":r[1], "backward":r[2], "mleft":r[3], "mright":r[4]}
+    global PLAYERS_COUNT
+    if request == b"join":
+        PLAYERS_COUNT+=1
+        print(f"игроков: {PLAYERS_COUNT}")
+        return PLAYERS_COUNT
+    elif request == b"restart":
+        setup()
+    else:
+        r = from_bytes(request)
+        state[r[0]] =  {"forward":r[1], "backward":r[2], "mleft":r[3], "mright":r[4]}
+        return {"id":r[0], "forward":r[1], "backward":r[2], "mleft":r[3], "mright":r[4]}
 
 def start_server(host='127.0.0.1', port=8080):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        setup()
         s.bind((host, port))
         s.listen()
         print(f"Server started on {requests.get('https://api.ipify.org').text}:{port}")
@@ -22,10 +34,7 @@ def start_server(host='127.0.0.1', port=8080):
                 #print(f"Connected by {addr}")
                 data = conn.recv(1024)
                 try:
-                    request = from_bytes(data) 
-                    response = handle_request(request)
-                    state[response["id"]] = response
-                    r = [to_bytes(i["id"], i["forward"], i["backward"], i["mleft"], i["mright"]) for i in state.values()]
+                    response = handle_request(data)
                     #print(response)
                     conn.sendall(pickle.dumps(response))
                 except json.JSONDecodeError:

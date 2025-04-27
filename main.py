@@ -10,7 +10,7 @@ import socket
 import json
 import multiplayer.bytelib
 from pyglet.math import Vec2
-
+import pickle
 
 # Константы
 
@@ -50,13 +50,20 @@ click_coordinates = []
 
 
 # функции
-def send_request(host='127.0.0.1', port=8080, request=None):
+def send_request(request = None, host='127.0.0.1', port=8080):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
         if request is not None:
-            s.sendall(json.dumps(request).encode('utf-8'))
-        data = s.recv(1024).decode('utf-8')
-        return json.loads(data)
+            if request == "join":
+                s.sendall(b"join")
+                data = s.recv(1024)#.decode('utf-8')
+                return pickle.loads(data) 
+            elif request == "restart":
+                s.sendall(b"restart")
+            else:
+                s.sendall(json.dumps(request).encode('utf-8'))
+                data = bytelib.from_bytes(s.recv(1024).decode('utf-8'))
+                return json.loads(data)
 
 
 class RaceGame(arcade.Window):
@@ -329,6 +336,15 @@ class RaceGame(arcade.Window):
         colors = [(255, 100, 100), (255, 0, 0), (0, 0, 255), (0, 255, 0)]
         self.player_list = arcade.SpriteList()
         self.wall_list = arcade.SpriteList()
+        
+        send_request("restart") #TODO
+        
+        self.id = send_request("join")
+        print(f"self.id:{self.id}")
+
+
+        if self.multiplayer:
+            self.players_count = self.id
         for i in range(self.players_count):
             player_sprite = arcade.Sprite(f"sprites/{self.colors[i]}_car.png", scale=2 / 10)
             player_sprite.center_x, player_sprite.center_y = self.coordinates[i]
@@ -367,23 +383,24 @@ class RaceGame(arcade.Window):
             (671, 414), (559, 455), (522, 571), (520, 735), (478, 726), (481, 614), (458, 440),
             (476, 351), (894, 361), (1383, 343)
         ]
-        self.send = {
-            'id': self.id,
-            'speed': 0,
-            "x": player_sprite.center_x,
-            "y": player_sprite.center_y,
-            'angle_speed': 0,
-            'current_angle': 90,
-            'forward': False,
-            'backward': False,
-            'mleft': False,
-            'mright': False,
-            'collisions_to_explosion': 10,
-            'explosion_time': 0.0,
-            'exploded': False,
-            'laps': 0,
-            'checkpoint': False
-        }
+        if i == self.id:  # Убедитесь, что self.send инициализируется только для текущего игрока
+            self.send = {
+                'id': self.id,
+                'speed': 0,
+                "x": player_sprite.center_x,
+                "y": player_sprite.center_y,
+                'angle_speed': 0,
+                'current_angle': 90,
+                'forward': False,
+                'backward': False,
+                'mleft': False,
+                'mright': False,
+                'collisions_to_explosion': 10,
+                'explosion_time': 0.0,
+                'exploded': False,
+                'laps': 0,
+                'checkpoint': False
+            }
         out_wall_sprite = arcade.Sprite()
         out_wall_sprite._points = out_points
         self.wall_list.append(out_wall_sprite)
