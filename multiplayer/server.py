@@ -1,19 +1,21 @@
 import socket
 import json, pickle
 from bytelib import *
+import requests
 # Состояние сервера (словарь с ID пользователей)
 state = {}
 
 def handle_request(request):
     global state
     r = request
+    state[r[0]] =  {"forward":r[1], "backward":r[2], "mleft":r[3], "mright":r[4]}
     return {"id":r[0], "forward":r[1], "backward":r[2], "mleft":r[3], "mright":r[4]}
 
 def start_server(host='127.0.0.1', port=8080):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((host, port))
         s.listen()
-        print(f"Server started on {host}:{port}")
+        print(f"Server started on {requests.get('https://api.ipify.org').text}:{port}")
         while True:
             conn, addr = s.accept()
             with conn:

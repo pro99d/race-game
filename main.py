@@ -9,6 +9,8 @@ import os, sys
 import socket
 import json
 import multiplayer.bytelib
+from pyglet.math import Vec2
+
 
 # Константы
 
@@ -19,15 +21,19 @@ SCREEN_HEIGHT = arcade.get_display_size()[1]
 
 def import_variables(filename):
     variables = {}
-    with open(filename, 'r', encoding='utf-8') as file:
-        for line in file:
-            key, value = line.strip().split(':')
-            variables[key] = value
+    if filename in os.listdir("."):
+        with open(filename, 'r', encoding='utf-8') as file:
+            for line in file:
+                key, value = line.strip().split(':')
+                variables[key] = value
 
     return variables
 
-with open("multiplayer.json", "r") as file:
-    settings = json.loads(file.read())
+MULTIPLAYER_CONFIG_NAME = "multiplayer.json"
+
+if MULTIPLAYER_CONFIG_NAME in os.listdir("."):
+    with open(MULTIPLAYER_CONFIG_NAME, "r") as file:
+        settings = json.loads(file.read())
 
 
 variables = import_variables('variables.dat')
@@ -199,13 +205,6 @@ class RaceGame(arcade.Window):
         if not self.music:
             arcade.stop_sound(mus)
 
-    def update_pos(self):
-        for player in self.players:
-            ID = player['sprite'].id
-            if ID == self.id:
-                continue
-            for control_key, control_value in self.controls[ID].items():
-                player[control_value] = self.multiplayer_controls[ID][control_value]
 
     def show_start_window(self, event):
         arcade.play_sound(self.start)
@@ -408,7 +407,8 @@ class RaceGame(arcade.Window):
             # self.manager.draw()
         elif self.game:
             self.clear
-            self.camera.use()
+            if self.multiplayer:
+                self.camera.use()
             # arcade.draw_line_strip(sprites, (0, 122, 255), 4)
             self.track.draw()
             self.player_list.draw()
@@ -427,15 +427,17 @@ class RaceGame(arcade.Window):
             self.player_list.draw_hit_boxes((200, 200, 200), 3)
             # self.wall_list.draw_hit_boxes((200, 100, 200), 4)
             # self.ai_list.draw_hit_boxes((100, 200, 255),1)
-            arcade.draw_text(f'FPS:{self.FPS}', start_x=10, start_y=SCREEN_HEIGHT - 120, color=(255, 255, 255),
+            x = self.camera.position[0]
+            y = self.camera.position[1]
+            arcade.draw_text(f'FPS:{self.FPS}', start_x=10+x, start_y=SCREEN_HEIGHT - 120+y, color=(255, 255, 255),
                              font_size=14)
             arcade.draw_text(f'скорость игрока {self.cur_player + 1}:{self.players[self.cur_player]["speed"]}',
-                             start_x=10, start_y=SCREEN_HEIGHT - 140, color=(255, 255, 255), font_size=14)
-            arcade.draw_text(f'круги игрока {self.cur_player + 1}:{self.players[self.cur_player]["laps"]}', start_x=10,
-                             start_y=SCREEN_HEIGHT - 60, color=(255, 255, 255), font_size=14)
+                             start_x=10+x, start_y=SCREEN_HEIGHT - 140+y, color=(255, 255, 255), font_size=14)
+            arcade.draw_text(f'круги игрока {self.cur_player + 1}:{self.players[self.cur_player]["laps"]}', start_x=10+x,
+                             start_y=SCREEN_HEIGHT - 60+y, color=(255, 255, 255), font_size=14)
             arcade.draw_text(f'столкновейний осталось {self.players[self.cur_player]["collisions_to_explosion"]}',
-                             start_x=10, start_y=SCREEN_HEIGHT - 180, color=(255, 255, 255), font_size=14)
-            arcade.draw_text(f"lim_k: {30 / self.FPS}", 10, SCREEN_HEIGHT - 200)
+                             start_x=10+x, start_y=SCREEN_HEIGHT - 180+y, color=(255, 255, 255), font_size=14)
+            arcade.draw_text(f"lim_k: {30 / self.FPS}", start_x = 10+x, start_y = SCREEN_HEIGHT - 200+y)
             arcade.draw_line_strip([(SCREEN_WIDTH / 2 + 436, SCREEN_HEIGHT / 2 + 17 - 100),
                                     (SCREEN_WIDTH / 2 + 617, SCREEN_HEIGHT / 2 + 17 + MAX_SPEED - 100)],
                                    color=(0, 0, 255))
@@ -522,6 +524,17 @@ class RaceGame(arcade.Window):
         )
         self.manager.add(messagebox)
         self.set_menu()
+    
+    def update_pos(self):
+        for player in self.players:
+            ID = player['sprite'].id
+            #if ID == self.id:
+            #   continue
+            for control_key, control_value in self.multiplayer_controls[ID].items():
+                player[control_key] = self.multiplayer_controls[ID][control_key]
+    def get_state(self):
+        pass        
+
 
     def load_replay(self, name):
         with open(name, "r") as f:
@@ -533,9 +546,8 @@ class RaceGame(arcade.Window):
         self.FPS = 1 / delta_time
         if self.game:
             spl = self.players[self.id]["sprite"]
-            self.camera.move_to((spl.center_x - self.width / 2, spl.center_y - self.height / 2), 0.5)
-            if self.multiplayer:
-                self.update_pos()
+            self.camera.move_to((spl.center_x - self.width / 2, spl.center_y - self.height / 2))
+            self.update_pos()
             if self.replay_state['record']:
                 state = {}
             for i in range(len(self.players)):
@@ -663,13 +675,15 @@ class RaceGame(arcade.Window):
         for player in self.players:
             for control_key, control_value in self.controls[player['sprite'].id].items():
                 if key == control_key:
-                    player[control_value] = True
+                    self.multiplayer_controls[player['sprite'].id][control_value] = True
+                    #player[control_value] = True
 
     def on_key_release(self, key, modifiers):
         for player in self.players:
             for control_key, control_value in self.controls[player['sprite'].id].items():
                 if key == control_key:
-                    player[control_value] = False
+                    self.multiplayer_controls[player['sprite'].id][control_value] = False
+                    #player[control_value] = False
 
 
 # Основная функция
