@@ -11,7 +11,9 @@ import json
 import multiplayer.bytelib
 from pyglet.math import Vec2
 import pickle
-
+import logging
+logging.basicConfig(level=logging.INFO, filename="game.log",filemode="w",
+                    format="%(asctime)s %(levelname)s.^8 %(message)s")
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -47,7 +49,8 @@ mu = float(variables['mu'])
 fps = int(variables['fps'])
 
 click_coordinates = []
-
+for var in variables:
+    logging.debug(f"{var}: {variables[var]}")
 
 # функции
 def send_request(request = None, host='127.0.0.1', port=8080):
@@ -65,7 +68,7 @@ def send_request(request = None, host='127.0.0.1', port=8080):
                 data = bytelib.from_bytes(s.recv(1024).decode('utf-8'))
                 return json.loads(data)
 
-
+logging.debug("функции")
 class RaceGame(arcade.Window):
     def __init__(self, width, height, title):
         super().__init__(width, height, title, fullscreen=False, resizable=True, vsync=True)
@@ -111,6 +114,7 @@ class RaceGame(arcade.Window):
         self.track.append(self.tr3)
         self.track.append(self.tr4)
         self.track.append(self.tr5)
+        logging.debug("инициализаия трека")
         # меню
         self.manager = arcade.gui.UIManager()
         self.manager.enable()
@@ -155,6 +159,7 @@ class RaceGame(arcade.Window):
                 child=self.v_box)
         )
         self.time_race = 1
+        logging.debug("инициализация меню")
         # физика
         self.player_list = None
         self.wall_list = None
@@ -162,12 +167,13 @@ class RaceGame(arcade.Window):
         self.physics_engine = None
         self.barrier_list = arcade.SpriteList()
         self.barrier_list.spatial_hash = True
-
+        logging.debug("инициализация физики")
         # музыка и эффекты
         self.music = False
         self.start = arcade.load_sound("sounds/click.wav")
         self.explosion = arcade.load_sound("sounds/explosion.wav")
         self.music_in_menu = arcade.load_sound("sounds/menu_music.wav")
+        logging.debug("инициализация музыки и эффектов")
         # остальное
         self.plspeed = [0]
         self.cur_player = 0
@@ -203,7 +209,8 @@ class RaceGame(arcade.Window):
             {"forward": False, "backward": False, "mleft": False, "mright": False},
             {"forward": False, "backward": False, "mleft": False, "mright": False}
         ]
-
+        logging.info(f"мультиплеер: {self.multiplayer}")
+        logging.info("инициализация завершена")
     def switch_layout(self, layout):
         pass
 
@@ -214,6 +221,7 @@ class RaceGame(arcade.Window):
 
 
     def show_start_window(self, event):
+        logging.debug("меню настроек")
         arcade.play_sound(self.start)
         self.game_settings = True
         self.menu = False
@@ -300,8 +308,9 @@ class RaceGame(arcade.Window):
         box.add(child=back.with_space_around(left=100, bottom=20))
         w, h = super().width, super().height
         self.managers.add(UIAnchorWidget(anchor_x="center_x", anchor_y="center_y", child=box))
-
+        logging.info("загрузка настроек завершена")
     def on_start(self, event):
+        logging.debug("запуск игры")
         self.game_settings = False
         self.frame = 0
         if self.menu:
@@ -316,12 +325,14 @@ class RaceGame(arcade.Window):
                 player['sprite'].center_x, player['sprite'].center_y = self.coordinates[id]
                 player['speed'] = 0
                 player['current_angle'] = 90
+                logging.debug(f"игрок {id} инициализирован")
             self.game = True
             self.menu = False
             self.start_time = time.time()
 
     def exit(self, event):
         arcade.play_sound(self.start)
+        logging.info("выход")
         if self.menu:
             arcade.close_window()
 
@@ -337,7 +348,7 @@ class RaceGame(arcade.Window):
         self.player_list = arcade.SpriteList()
         self.wall_list = arcade.SpriteList()
         
-        send_request("restart") #TODO
+        #send_request("restart") #TODO
         
         self.id = send_request("join")
         print(f"self.id:{self.id}")
