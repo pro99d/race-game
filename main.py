@@ -13,7 +13,7 @@ from pyglet.math import Vec2
 import pickle
 import logging
 logging.basicConfig(level=logging.INFO, filename="game.log",filemode="w",
-                    format="%(asctime)s %(levelname)s.^8 %(message)s")
+                    format="%(asctime)s %(levelname)s. %(message)s")
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -30,13 +30,15 @@ def import_variables(filename):
                 variables[key] = value
 
     return variables
-
+'''
 MULTIPLAYER_CONFIG_NAME = "multiplayer.json"
 
 if MULTIPLAYER_CONFIG_NAME in os.listdir("."):
     with open(MULTIPLAYER_CONFIG_NAME, "r") as file:
         settings = json.loads(file.read())
+'''
 
+settings = {"ip":"5.183.29.113", "port":8080}
 
 variables = import_variables('variables.dat')
 DRIFT_FACTOR = float(variables["DRIFT_FACTOR"])
@@ -348,14 +350,14 @@ class RaceGame(arcade.Window):
         self.player_list = arcade.SpriteList()
         self.wall_list = arcade.SpriteList()
         
-        #send_request("restart") #TODO
+        send_request("restart") #TODO
         
-        self.id = send_request("join")
+        self.id = send_request("join")-1
         print(f"self.id:{self.id}")
 
 
         if self.multiplayer:
-            self.players_count = self.id
+            self.players_count = self.id+1
         for i in range(self.players_count):
             player_sprite = arcade.Sprite(f"sprites/{self.colors[i]}_car.png", scale=2 / 10)
             player_sprite.center_x, player_sprite.center_y = self.coordinates[i]
@@ -380,6 +382,24 @@ class RaceGame(arcade.Window):
                 'laps': 0,
                 'checkpoint': False
             })
+            if i == self.id:  # Убедитесь, что self.send инициализируется только для текущего игрока
+                self.send = {
+                    'id': self.id,
+                    'speed': 0,
+                    "x": player_sprite.center_x,
+                    "y": player_sprite.center_y,
+                    'angle_speed': 0,
+                    'current_angle': 90,
+                    'forward': False,
+                    'backward': False,
+                    'mleft': False,
+                    'mright': False,
+                    'collisions_to_explosion': 10,
+                    'explosion_time': 0.0,
+                    'exploded': False,
+                    'laps': 0,
+                    'checkpoint': False
+                }
         out_points = [
             (1672, 552), (1534, 893), (1290, 939), (986, 938), (745, 930), (553, 943), (434, 943),
             (310, 897), (224, 716), (189, 373), (206, 218), (300, 120), (576, 89), (966, 69),
@@ -394,24 +414,7 @@ class RaceGame(arcade.Window):
             (671, 414), (559, 455), (522, 571), (520, 735), (478, 726), (481, 614), (458, 440),
             (476, 351), (894, 361), (1383, 343)
         ]
-        if i == self.id:  # Убедитесь, что self.send инициализируется только для текущего игрока
-            self.send = {
-                'id': self.id,
-                'speed': 0,
-                "x": player_sprite.center_x,
-                "y": player_sprite.center_y,
-                'angle_speed': 0,
-                'current_angle': 90,
-                'forward': False,
-                'backward': False,
-                'mleft': False,
-                'mright': False,
-                'collisions_to_explosion': 10,
-                'explosion_time': 0.0,
-                'exploded': False,
-                'laps': 0,
-                'checkpoint': False
-            }
+
         out_wall_sprite = arcade.Sprite()
         out_wall_sprite._points = out_points
         self.wall_list.append(out_wall_sprite)
