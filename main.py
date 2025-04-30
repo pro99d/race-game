@@ -12,8 +12,12 @@ import multiplayer.bytelib
 from pyglet.math import Vec2
 import pickle
 import logging
-logging.basicConfig(level=logging.INFO, filename="game.log",filemode="w",
-                    format="%(asctime)s %(levelname)s.^8 %(message)s")
+logging.basicConfig(
+    level=logging.INFO,  # Уровень логирования
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Формат сообщений
+    #handlers=[logging.StreamHandler()],  # Вывод в консоль
+    filename="game.log"  # Имя файла для записи логов
+)
 # Константы
 
 print(f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация...")
@@ -181,9 +185,6 @@ class RaceGame(arcade.Window):
         self.start_time = time.time()
         # print(f"игрок {self.id}")
         self.multiplayer = True
-        if self.multiplayer:
-            self.id = 0  # int(sys.argv[1])  # send_request(request="join")["length"]
-            print(f"игрок {self.id}")
         self.camera = arcade.Camera()
         # повтор
         self.replay_state = {
@@ -349,13 +350,14 @@ class RaceGame(arcade.Window):
         self.wall_list = arcade.SpriteList()
         
         #send_request("restart") #TODO
-        
-        self.id = send_request("join")
-        print(f"self.id:{self.id}")
-
-
         if self.multiplayer:
-            self.players_count = self.id
+            join = list(send_request("join"))
+            self.id = join[0]-1
+            self.players_count = join[1]
+            print(f"self.id:{self.id}")
+        else:
+            self.id  = 0
+        
         for i in range(self.players_count):
             player_sprite = arcade.Sprite(f"sprites/{self.colors[i]}_car.png", scale=2 / 10)
             player_sprite.center_x, player_sprite.center_y = self.coordinates[i]
@@ -380,6 +382,24 @@ class RaceGame(arcade.Window):
                 'laps': 0,
                 'checkpoint': False
             })
+            if i == self.id:  # Убедитесь, что self.send инициализируется только для текущего игрока
+                self.send = {
+                    'id': self.id,
+                    'speed': 0,
+                    "x": player_sprite.center_x,
+                    "y": player_sprite.center_y,
+                    'angle_speed': 0,
+                    'current_angle': 90,
+                    'forward': False,
+                    'backward': False,
+                    'mleft': False,
+                    'mright': False,
+                    'collisions_to_explosion': 10,
+                    'explosion_time': 0.0,
+                    'exploded': False,
+                    'laps': 0,
+                    'checkpoint': False
+                }
         out_points = [
             (1672, 552), (1534, 893), (1290, 939), (986, 938), (745, 930), (553, 943), (434, 943),
             (310, 897), (224, 716), (189, 373), (206, 218), (300, 120), (576, 89), (966, 69),
@@ -394,24 +414,7 @@ class RaceGame(arcade.Window):
             (671, 414), (559, 455), (522, 571), (520, 735), (478, 726), (481, 614), (458, 440),
             (476, 351), (894, 361), (1383, 343)
         ]
-        if i == self.id:  # Убедитесь, что self.send инициализируется только для текущего игрока
-            self.send = {
-                'id': self.id,
-                'speed': 0,
-                "x": player_sprite.center_x,
-                "y": player_sprite.center_y,
-                'angle_speed': 0,
-                'current_angle': 90,
-                'forward': False,
-                'backward': False,
-                'mleft': False,
-                'mright': False,
-                'collisions_to_explosion': 10,
-                'explosion_time': 0.0,
-                'exploded': False,
-                'laps': 0,
-                'checkpoint': False
-            }
+       
         out_wall_sprite = arcade.Sprite()
         out_wall_sprite._points = out_points
         self.wall_list.append(out_wall_sprite)
@@ -701,10 +704,11 @@ class RaceGame(arcade.Window):
         if key == arcade.key.ESCAPE:
             self.set_menu()
         for player in self.players:
-            for control_key, control_value in self.controls[player['sprite'].id].items():
-                if key == control_key:
-                    self.multiplayer_controls[player['sprite'].id][control_value] = True
-                    #player[control_value] = True
+            if player['sprite'].id == self.id and self.multiplayer:
+                for control_key, control_value in self.controls[player['sprite'].id].items():
+                    if key == control_key:
+                        self.multiplayer_controls[player['sprite'].id][control_value] = True
+                        #player[control_value] = True
 
     def on_key_release(self, key, modifiers):
         for player in self.players:

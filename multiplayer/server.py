@@ -3,8 +3,9 @@ import json, pickle
 from bytelib import *
 import requests
 PLAYERS_COUNT = 0
-
+total_players = 2
 def setup():
+    global PLAYERS_COUNT
     state = [{"id":i, "forward":False, "backward":False, "mleft":False, "mright":False, "connected":False} for i in range(4)]
     PLAYERS_COUNT = 0
 
@@ -13,8 +14,8 @@ def handle_request(request):
     global PLAYERS_COUNT
     if request == b"join":
         PLAYERS_COUNT+=1
-        print(f"игроков: {PLAYERS_COUNT}")
-        return PLAYERS_COUNT
+        print(f"игроков: {PLAYERS_COUNT}, нужно для старта: {total_players}")
+        return bytes([PLAYERS_COUNT, total_players])
     elif request == b"restart":
         setup()
     else:
@@ -27,7 +28,7 @@ def start_server(host='127.0.0.1', port=8080):
         setup()
         s.bind((host, port))
         s.listen()
-        print(f"Server started on {requests.get('https://api.ipify.org').text}:{port}")
+        print(f"Server started on {host}:{port}")
         while True:
             conn, addr = s.accept()
             with conn:
