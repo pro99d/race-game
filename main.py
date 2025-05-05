@@ -12,6 +12,10 @@ import multiplayer.bytelib
 from pyglet.math import Vec2
 import pickle
 import logging
+
+from multiplayer.bytelib import to_bytes, from_bytes
+#
+
 logging.basicConfig(
     level=logging.INFO,  # Уровень логирования
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Формат сообщений
@@ -68,9 +72,9 @@ def send_request(request = None, host='127.0.0.1', port=8080):
             elif request == "restart":
                 s.sendall(b"restart")
             else:
-                s.sendall(json.dumps(request).encode('utf-8'))
-                data = bytelib.from_bytes(s.recv(1024).decode('utf-8'))
-                return json.loads(data)
+                s.sendall(request)
+                data = (s.recv(1024))
+                return pickle.loads(data)
 
 logging.debug("функции")
 class RaceGame(arcade.Window):
@@ -578,6 +582,13 @@ class RaceGame(arcade.Window):
         if self.game:
             spl = self.players[self.id]["sprite"]
             self.camera.move_to((spl.center_x - self.width / 2, spl.center_y - self.height / 2))
+            self.multiplayer_controls = (send_request(to_bytes(
+                self.id,                                        # id
+                self.multiplayer_controls[self.id]['forward'],  # forward
+                self.multiplayer_controls[self.id]['backward'], # backward
+                self.multiplayer_controls[self.id]['mleft'],    # left
+                self.multiplayer_controls[self.id]['mright']    # right
+            )))
             self.update_pos()
             if self.replay_state['record']:
                 state = {}

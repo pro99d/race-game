@@ -6,10 +6,10 @@ def to_bytes(num, bool1, bool2, bool3, bool4):
     format:
     \000\num(1-4)\0\bool4\0\bool3\0\bool2\0\bool1
     :param integer:
-    :param bool1:
-    :param bool2:
-    :param bool3:
-    :param bool4:
+    :param forward:
+    :param backward:
+    :param left:
+    :param right:
     :return:
     """
     #print(bin(num))
