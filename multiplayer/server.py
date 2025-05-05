@@ -33,7 +33,7 @@ def handle_request(request):
         return state
 
 
-def start_server(host="127.0.0.1", port=8080):
+def start_server(host="0.0.0.0", port=8080):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         setup()
         s.bind((host, port))
