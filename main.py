@@ -351,9 +351,7 @@ class RaceGame(arcade.Window):
         self.coordinates.reverse()
         colors = [(255, 100, 100), (255, 0, 0), (0, 0, 255), (0, 255, 0)]
         self.player_list = arcade.SpriteList()
-        self.wall_list = arcade.SpriteList()
-        
-        #send_request("restart") #TODO
+        self.wall_list = arcade.SpriteList() 
         if self.multiplayer:
             join = list(send_request("join"))
             self.id = join[0]-1
@@ -386,7 +384,7 @@ class RaceGame(arcade.Window):
                 'laps': 0,
                 'checkpoint': False
             })
-            if i == self.id:  # Убедитесь, что self.send инициализируется только для текущего игрока
+            if i == self.id: 
                 self.send = {
                     'id': self.id,
                     'speed': 0,

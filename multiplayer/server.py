@@ -12,7 +12,7 @@ def setup():
     global PLAYERS_COUNT
     global state
     state = [
-        {"id": i, "forward": False, "backward": False, "mleft": False, "mright": False}
+        {"id": i, "forward": False, "backward": False, "mleft": False, "mright": False, "Connected":False}
         for i in range(4)
     ]
     PLAYERS_COUNT = 0
@@ -24,6 +24,7 @@ def handle_request(request):
     if request == b"join":
         PLAYERS_COUNT += 1
         print(f"игроков: {PLAYERS_COUNT}, нужно для старта: {total_players}")
+        state[PLAYERS_COUNT]['Connected'] = True
         return bytes([PLAYERS_COUNT, total_players])
     elif request == b"restart":
         setup()
