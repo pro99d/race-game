@@ -13,3 +13,4 @@ pres.py
 /realises
 *.zip
 uv.lock
+/main.dist
