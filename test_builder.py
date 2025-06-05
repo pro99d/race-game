@@ -2,6 +2,8 @@ import arcade
 from arcade import  key
 
 
+
+
 class Rect:
     def __init__(self, x, y, width, height, color, angle=0):
         self.x = x
@@ -29,7 +31,9 @@ class Window(arcade.Window):
         self.camera = arcade.Camera()
         self.rect = Rect(200, 200, 200, 200, (23, 255, 100))
         self.keys = []
-        self.speed = 300
+        self.velocity = [0, 0]
+        self.G = (0, -9.8)
+        self.resolution = 100 # pix/meter 
     def on_draw(self):
         self.clear()
         self.camera.use()
@@ -38,16 +42,17 @@ class Window(arcade.Window):
         """
         dt: delta time
         """
-        ds = [0, 0]
-        if key.W in self.keys:
-            ds[1] = self.speed*dt
-        elif key.S in self.keys:
-            ds[1] = -self.speed*dt
-        if key.A in self.keys:
-            ds[0] = -self.speed*dt
-        elif key.D in self.keys:
-            ds[0] = self.speed*dt
-        self.rect.move(ds[0], ds[1])
+        self.velocity[0]+=self.G[0]*dt**2*self.resolution
+        self.velocity[1]+=self.G[1]*dt**2*self.resolution
+        # if key.W in self.keys:
+        #     ds[1] = self.speed*dt
+        # elif key.S in self.keys:
+        #     ds[1] = -self.speed*dt
+        # if key.A in self.keys:
+        #     ds[0] = -self.speed*dt
+        # elif key.D in self.keys:
+        #     ds[0] = self.speed*dt
+        self.rect.move(self.velocity[0], self.velocity[1])
     def on_key_press(self, key, modifiers):
         self.keys.append(key)
     def on_key_release(self, key, modifiers):

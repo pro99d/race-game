@@ -12,8 +12,9 @@ import multiplayer.bytelib
 from pyglet.math import Vec2
 import pickle
 import logging
-
+import os
 from multiplayer.bytelib import to_bytes, from_bytes
+
 #
 logging.basicConfig(
     level=logging.INFO,  # Уровень логирования
@@ -40,7 +41,6 @@ def import_variables(filename):
 
     return variables
 
-
 MULTIPLAYER_CONFIG_NAME = "multiplayer.json"
 
 if MULTIPLAYER_CONFIG_NAME in os.listdir("."):
@@ -49,7 +49,7 @@ if MULTIPLAYER_CONFIG_NAME in os.listdir("."):
 
 
 variables = import_variables("variables.dat")
-DRIFT_FACTOR = float(variables["DRIFT_FACTOR"])
+drift_factor = float(variables["DRIFT_FACTOR"])
 SCREEN_TITLE = "Race Game"
 MAX_SPEED = int(variables["MAX_SPEED"])
 AX = float(variables["AX"])
@@ -57,6 +57,8 @@ FRICTION = int(variables["FRICTION"])
 g = float(variables["g"])
 mu = float(variables["mu"])
 fps = int(variables["fps"])
+mod_folder = "mods"
+
 
 click_coordinates = []
 for var in variables:
@@ -83,6 +85,65 @@ def send_request(request=None, host="127.0.0.1", port=8080):
 logging.debug("функции")
 
 
+class ModManager:
+    def __init__(self, klass, mod_folder="mods"):
+        self.mod_folder = mod_folder
+        self.mods = []
+        self.klass = klass
+
+    def call_func(self, obj, func_name, *args, **kwargs):
+        # Получаем атрибут объекта по имени
+        if func_name in dir(obj):
+            func = getattr(obj, func_name)
+        else:
+            return
+        # Проверяем, что это действительно функция
+        if callable(func):
+            return func(*args, **kwargs)
+        else:
+            raise AttributeError(
+                f"'{type(obj).__name__}' object has no callable attribute '{func_name}'"
+            )
+
+    def load_mod(self, name: str):
+        if name.endswith(".py"):
+            name = name[:-3]
+        mod = __import__(f"{mod_folder}.{name}")
+        return getattr(mod, name)
+
+    def load(self):
+        modlist = os.listdir(self.mod_folder)
+        try:
+            modlist.remove("__pycache__")
+        except:
+            pass
+
+        for i in modlist:
+            if i.endswith(".py"):
+                i = i[:-3]
+            mod = self.load_mod(i)
+            name = i
+            status = True
+            if "name" in dir(mod):
+                name = mod.name
+            self.mods.append(
+                {
+                    "name": name,
+                    "mod": mod,
+                    "active": status,
+                }
+            )
+
+    def call(self, func_name, *args, **kargs):
+        returned = []
+        for i in self.mods:
+            if i["active"]:
+                returned.append(
+                    self.call_func(i["mod"], func_name, self.klass, *args, **kargs)
+                )
+        return returned
+
+    def deactivate(self): ...
 class RaceGame(arcade.Window):
     def __init__(self, width, height, title):
         super().__init__(
@@ -260,7 +321,7 @@ class RaceGame(arcade.Window):
         self.debug = False
         self.start_time = time.time()
         # print(f"игрок {self.id}")
-        self.multiplayer = True
+        self.multiplayer = False
         self.camera = arcade.Camera()
         # повтор
         self.replay_state = {
@@ -305,6 +366,9 @@ class RaceGame(arcade.Window):
             {"forward": False, "backward": False, "mleft": False, "mright": False},
             {"forward": False, "backward": False, "mleft": False, "mright": False},
         ]
+        self.modManager = ModManager(self)
+        self.modManager.load()
+        self.modManager.call("__init__")
         logging.info(f"мультиплеер: {self.multiplayer}")
         logging.info("инициализация завершена")
 
@@ -704,7 +768,7 @@ class RaceGame(arcade.Window):
                 ],
                 color=(0, 0, 255),
             )
-
+        self.modManager.call("draw")
         arcade.finish_render()
 
     def explode(self, player):
@@ -789,9 +853,7 @@ class RaceGame(arcade.Window):
         messagebox = arcade.gui.UIMessageBox(
             width=300,
             height=200,
-            message_text=(  #
-                message
-            ),
+            message_text=(message),  #
             buttons=["Ok"],
         )
         self.manager.add(messagebox)
@@ -812,6 +874,18 @@ class RaceGame(arcade.Window):
         with open(name, "r") as f:
             self.replay_state["replay"] = json.load(f)
 
+    def drift_angle(self, angle, speed, dir, angle_speed):
+        da = angle_speed * dir
+        if da > 180:
+            da -= 360
+        elif da < -180:
+            da += 360
+        manuverability = max(0.4, 0.2 + 0.9 - abs(speed) / 1.5)
+        max_turn = 5 * (1 - manuverability) * 10  # Максимальный поворот в градусах
+        turn_amount = max(-max_turn, min(max_turn, da * (1 - manuverability)))
+        angle += turn_amount
+        return angle % 360
+
     def update(self, delta_time, ang_sp=4):
         global AX
         self.menu_music()
@@ -821,16 +895,17 @@ class RaceGame(arcade.Window):
             self.camera.move_to(
                 (spl.center_x - self.width / 2, spl.center_y - self.height / 2)
             )
-            self.multiplayer_controls = send_request(
-                to_bytes(
-                    self.id,  # id
-                    self.multiplayer_controls[self.id]["forward"],  # forward
-                    self.multiplayer_controls[self.id]["backward"],  # backward
-                    self.multiplayer_controls[self.id]["mleft"],  # left
-                    self.multiplayer_controls[self.id]["mright"],  # right
+            if self.multiplayer:
+                self.multiplayer_controls = send_request(
+                    to_bytes(
+                        self.id,  # id
+                        self.multiplayer_controls[self.id]["forward"],  # forward
+                        self.multiplayer_controls[self.id]["backward"],  # backward
+                        self.multiplayer_controls[self.id]["mleft"],  # left
+                        self.multiplayer_controls[self.id]["mright"],  # right
+                    )
                 )
-            )
-            self.update_pos()
+                self.update_pos()
             if self.replay_state["record"]:
                 state = {}
             for i in range(len(self.players)):
@@ -875,9 +950,19 @@ class RaceGame(arcade.Window):
                 else:
                     FRICTION = 0.8
                 if player["mleft"]:
-                    player["current_angle"] += ang_sp
+                    player["current_angle"] += self.drift_angle(
+                        angle_speed=ang_sp,
+                        speed=player["speed"],
+                        angle=player["angle"],
+                        dir="1",
+                    )
                 elif player["mright"]:
-                    player["current_angle"] -= ang_sp
+                    player["current_angle"] -= self.drift_angle(
+                        angle_speed=ang_sp,
+                        speed=player["speed"],
+                        angle=player["angle"],
+                        dir="1",
+                    )
                 if player["forward"]:
                     if player["speed"] <= MAX_SPEED:
                         player["speed"] += AX
@@ -952,6 +1037,7 @@ class RaceGame(arcade.Window):
             time.time() - self.start_time > self.time_race * 60 and self.game
         ):  # and False:  # TODO добавить ограничение времени
             self.end_game()
+        self.modManager.call("update", delta_time)
 
     def cor(self):
         self.update_send()
@@ -1006,9 +1092,9 @@ class RaceGame(arcade.Window):
                 player["sprite"].id
             ].items():
                 if key == control_key:
-                    self.multiplayer_controls[player["sprite"].id][control_value] = (
-                        False
-                    )
+                    self.multiplayer_controls[player["sprite"].id][
+                        control_value
+                    ] = False
                     # player[control_value] = False
 
 
