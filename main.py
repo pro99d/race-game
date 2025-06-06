@@ -41,6 +41,7 @@ def import_variables(filename):
 
     return variables
 
+
 MULTIPLAYER_CONFIG_NAME = "multiplayer.json"
 
 if MULTIPLAYER_CONFIG_NAME in os.listdir("."):
@@ -534,6 +535,7 @@ class RaceGame(arcade.Window):
             self.game = True
             self.menu = False
             self.start_time = time.time()
+        self.modManager.call("start")
 
     def exit(self, event):
         arcade.play_sound(self.start)
@@ -1085,6 +1087,7 @@ class RaceGame(arcade.Window):
                             control_value
                         ] = True
                         # player[control_value] = True
+        self.modManager.call("on_key_press", key, modifiers)
 
     def on_key_release(self, key, modifiers):
         for player in self.players:
@@ -1096,6 +1099,7 @@ class RaceGame(arcade.Window):
                         control_value
                     ] = False
                     # player[control_value] = False
+        self.modManager.call("on_key_release", key, modifiers)
 
 
 # Основная функция
