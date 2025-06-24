@@ -14,13 +14,11 @@ import pickle
 import logging
 import os
 from multiplayer.bytelib import to_bytes, from_bytes
-
 #
 logging.basicConfig(
-    level=logging.INFO,  # Уровень логирования
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Формат сообщений
-    # handlers=[logging.StreamHandler()],  # Вывод в консоль
-    filename="game.log",  # Имя файла для записи логов
+    level=logging.INFO,  
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  
+    filename="game.log",  
 )
 # Константы
 
@@ -93,12 +91,10 @@ class ModManager:
         self.klass = klass
 
     def call_func(self, obj, func_name, *args, **kwargs):
-        # Получаем атрибут объекта по имени
         if func_name in dir(obj):
             func = getattr(obj, func_name)
         else:
             return
-        # Проверяем, что это действительно функция
         if callable(func):
             return func(*args, **kwargs)
         else:
