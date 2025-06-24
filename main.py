@@ -8,12 +8,8 @@ import time
 import os, sys
 import socket
 import json
-import multiplayer.bytelib
-from pyglet.math import Vec2
-import pickle
 import logging
 import os
-from multiplayer.bytelib import to_bytes, from_bytes
 #
 logging.basicConfig(
     level=logging.INFO,  
@@ -45,7 +41,8 @@ MULTIPLAYER_CONFIG_NAME = "multiplayer.json"
 if MULTIPLAYER_CONFIG_NAME in os.listdir("."):
     with open(MULTIPLAYER_CONFIG_NAME, "r") as file:
         settings = json.loads(file.read())
-
+else:
+    settings = {"host":"localhost", "port":8080}
 
 variables = import_variables("variables.dat")
 drift_factor = float(variables["DRIFT_FACTOR"])
@@ -65,20 +62,31 @@ for var in variables:
 
 
 # функции
-def send_request(request=None, host="127.0.0.1", port=8080):
+def send_request(request_data: dict, host="127.0.0.1", port=8080):
+    """
+    Отправляет JSON-запрос на сервер и возвращает ответ в виде словаря.
+    """
+    # В этой функции используется стандартный модуль socket, он уже импортирован
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((host, port))
-        if request is not None:
-            if request == "join":
-                s.sendall(b"join")
-                data = s.recv(1024)  # .decode('utf-8')
-                return pickle.loads(data)
-            elif request == "restart":
-                s.sendall(b"restart")
-            else:
-                s.sendall(request)
-                data = s.recv(1024)
-                return pickle.loads(data)
+        try:
+            s.connect((host, port))
+            # Кодируем словарь в JSON-строку, затем в байты
+            s.sendall(json.dumps(request_data).encode("utf-8"))
+            
+            # Получаем ответ, декодируем байты в строку, затем парсим JSON
+            response_bytes = s.recv(4096)
+            if not response_bytes:
+                logging.warning("Получен пустой ответ от сервера.")
+                return {"error": "Empty response from server"}
+            
+            return json.loads(response_bytes.decode("utf-8"))
+            
+        except ConnectionRefusedError:
+            logging.error(f"Не удалось подключиться к серверу {host}:{port}. В подключении отказано.")
+            return {"error": "Connection refused"}
+        except Exception as e:
+            logging.error(f"Произошла ошибка при отправке запроса: {e}")
+            return {"error": str(e)}
 
 
 logging.debug("функции")
@@ -318,7 +326,7 @@ class RaceGame(arcade.Window):
         self.debug = False
         self.start_time = time.time()
         # print(f"игрок {self.id}")
-        self.multiplayer = False
+        self.multiplayer = True
         self.camera = arcade.Camera()
         # повтор
         self.replay_state = {
@@ -550,11 +558,23 @@ class RaceGame(arcade.Window):
         colors = [(255, 100, 100), (255, 0, 0), (0, 0, 255), (0, 255, 0)]
         self.player_list = arcade.SpriteList()
         self.wall_list = arcade.SpriteList()
+
         if self.multiplayer:
-            join = list(send_request("join"))
-            self.id = join[0] - 1
-            self.players_count = join[1]
-            print(f"self.id:{self.id}")
+            logging.info("Попытка подключения к многопользовательской игре...")
+            join_response = send_request({"action": "join"}, host=settings.get('host', '127.0.0.1'), port=settings.get('port', 8080))
+            
+            if "error" in join_response:
+                logging.error(f"Не удалось подключиться: {join_response['error']}. Переключение в одиночный режим.")
+                self.multiplayer = False # Возвращаемся в одиночный режим
+                self.id = 0
+                self.players_count = 1
+            else:
+                self.id = join_response.get("id", 0)
+                initial_state = join_response.get("state", [])
+                self.players_count = len(initial_state)
+                # Сохраняем начальное состояние для дальнейшего использования
+                self.multiplayer_controls = initial_state
+                logging.info(f"Успешное подключение! Мой ID: {self.id}. Всего игроков в state: {self.players_count}")
         else:
             self.id = 0
 
@@ -893,17 +913,30 @@ class RaceGame(arcade.Window):
             self.camera.move_to(
                 (spl.center_x - self.width / 2, spl.center_y - self.height / 2)
             )
+
             if self.multiplayer:
-                self.multiplayer_controls = send_request(
-                    to_bytes(
-                        self.id,  # id
-                        self.multiplayer_controls[self.id]["forward"],  # forward
-                        self.multiplayer_controls[self.id]["backward"],  # backward
-                        self.multiplayer_controls[self.id]["mleft"],  # left
-                        self.multiplayer_controls[self.id]["mright"],  # right
-                    )
-                )
-                self.update_pos()
+                my_controls = self.multiplayer_controls[self.id]
+                input_data = {
+                    "action": "input",
+                    "id": self.id,
+                    "keys": {
+                        "forward": my_controls["forward"],
+                        "backward": my_controls["backward"],
+                        "mleft": my_controls["mleft"],
+                        "mright": my_controls["mright"]
+                    }
+                }
+                
+                response = send_request(input_data, host=settings.get('host', '127.0.0.1'), port=settings.get('port', 8080))
+                
+                if response and response.get("status") == "update":
+                    server_state = response.get("state", [])
+                    if len(server_state) == len(self.multiplayer_controls):
+                        self.multiplayer_controls = server_state
+                    self.update_pos()
+                elif response and "error" in response:
+                    logging.warning(f"Ошибка от сервера: {response['error']}")
+            
             if self.replay_state["record"]:
                 state = {}
             for i in range(len(self.players)):
@@ -951,15 +984,15 @@ class RaceGame(arcade.Window):
                     player["current_angle"] += self.drift_angle(
                         angle_speed=ang_sp,
                         speed=player["speed"],
-                        angle=player["angle"],
-                        dir="1",
+                        angle=player["current_angle"],
+                        dir=1,
                     )
                 elif player["mright"]:
                     player["current_angle"] -= self.drift_angle(
                         angle_speed=ang_sp,
                         speed=player["speed"],
-                        angle=player["angle"],
-                        dir="1",
+                        angle=player["current_angle"],
+                        dir=1,
                     )
                 if player["forward"]:
                     if player["speed"] <= MAX_SPEED:
@@ -1039,7 +1072,7 @@ class RaceGame(arcade.Window):
 
     def cor(self):
         self.update_send()
-        # send_request(host=settings['host"], port=settings["port"],request=self.send)#TODO fix server
+        # send_request(host=settings['host'], port=settings["port"],request=self.send)#TODO fix server
 
     def on_mouse_press(self, x, y, button, modifiers):
         global click_coordinates
