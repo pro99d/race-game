@@ -55,13 +55,16 @@ mu = float(variables["mu"])
 fps = int(variables["fps"])
 mod_folder = "mods"
 
-
+turn_constant = 13.96*5
 click_coordinates = []
 for var in variables:
     logging.debug(f"{var}: {variables[var]}")
 
 
 # функции
+def sign(x):
+    return 1 if x>0 else 0 if x==0 else -1
+
 def send_request(request_data: dict, host="127.0.0.1", port=8080):
     """
     Отправляет JSON-запрос на сервер и возвращает ответ в виде словаря.
@@ -307,7 +310,7 @@ class RaceGame(arcade.Window):
         self.time_race = 1
         logging.debug("инициализация меню")
         # физика
-        self.player_list = None
+        self.player_list = arcade.SpriteList()
         self.wall_list = None
         self.player_sprite = None
         self.physics_engine = None
@@ -326,7 +329,7 @@ class RaceGame(arcade.Window):
         self.debug = False
         self.start_time = time.time()
         # print(f"игрок {self.id}")
-        self.multiplayer = True
+        self.multiplayer = False
         self.camera = arcade.Camera()
         # повтор
         self.replay_state = {
@@ -829,8 +832,7 @@ class RaceGame(arcade.Window):
             player["forward"],
             player["backward"],
             player["mleft"],
-            player["mright"],
-        )
+            player["mright"],)
 
     def check_for_collision(self):
         for i, player in enumerate(self.players):
@@ -933,10 +935,12 @@ class RaceGame(arcade.Window):
                     server_state = response.get("state", [])
                     if len(server_state) == len(self.multiplayer_controls):
                         self.multiplayer_controls = server_state
-                    self.update_pos()
                 elif response and "error" in response:
                     logging.warning(f"Ошибка от сервера: {response['error']}")
             
+            # Вне зависимости от режима, обновляем состояние игроков на основе ввода
+            self.update_pos()
+
             if self.replay_state["record"]:
                 state = {}
             for i in range(len(self.players)):
@@ -961,18 +965,7 @@ class RaceGame(arcade.Window):
                 self.physics_engine = arcade.PhysicsEngineSimple(
                     player["sprite"], self.player_sprite
                 )
-                ang_sp = 4
-                if player["speed"] != 0:
-                    radius = abs(player["speed"]) / ang_sp
-                    optimal_speed = math.sqrt(radius * g * mu)
-                    if abs(player["speed"]) <= optimal_speed:
-                        p = optimal_speed / abs(player["speed"])
-                        ang_sp = player["speed"] * p
-                    elif optimal_speed != 0:
-                        p = abs(player["speed"]) / optimal_speed
-                        ang_sp = player["speed"] / p
-                else:
-                    ang_sp = 0
+                ang_sp = sign(player['speed'])*math.sqrt(player['speed'])*turn_constant
                 self.player = []
                 self.player.append(player["sprite"])
                 AX = 0.005 * player["speed"] ** 2 + 0.3
@@ -981,19 +974,9 @@ class RaceGame(arcade.Window):
                 else:
                     FRICTION = 0.8
                 if player["mleft"]:
-                    player["current_angle"] += self.drift_angle(
-                        angle_speed=ang_sp,
-                        speed=player["speed"],
-                        angle=player["current_angle"],
-                        dir=1,
-                    )
+                    player["current_angle"] += ang_sp*delta_time
                 elif player["mright"]:
-                    player["current_angle"] -= self.drift_angle(
-                        angle_speed=ang_sp,
-                        speed=player["speed"],
-                        angle=player["current_angle"],
-                        dir=1,
-                    )
+                    player["current_angle"] -= ang_sp*delta_time
                 if player["forward"]:
                     if player["speed"] <= MAX_SPEED:
                         player["speed"] += AX
@@ -1107,15 +1090,14 @@ class RaceGame(arcade.Window):
         if key == arcade.key.ESCAPE:
             self.set_menu()
         for player in self.players:
-            if player["sprite"].id == self.id and self.multiplayer:
-                for control_key, control_value in self.controls[
-                    player["sprite"].id
-                ].items():
+            if (player["sprite"].id == self.id and self.multiplayer) or not self.multiplayer:
+                for control_key, control_value in self.controls[player["sprite"].id].items():
                     if key == control_key:
                         self.multiplayer_controls[player["sprite"].id][
                             control_value
                         ] = True
                         # player[control_value] = True
+        print(self.multiplayer_controls)
         self.modManager.call("on_key_press", key, modifiers)
 
     def on_key_release(self, key, modifiers):
