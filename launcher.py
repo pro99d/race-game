@@ -1,10 +1,13 @@
-import flet as ft
 import subprocess
 import threading
 import socket
 import time
+import flet as ft
 
 def send_command_to_server(cmd):
+    """
+    отправляет команду сервер
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect(("127.0.0.1", 9090))
@@ -16,6 +19,9 @@ def send_command_to_server(cmd):
         return f"Ошибка отправки команды на сервер: {e}\n"
 
 def process_terminal(label, command, is_server=False):
+    """
+    обрабатывает терминал
+    """
     # Основное текстовое поле для вывода
     output = ft.TextField(
         multiline=True, read_only=True, expand=True, height=350, label=f"Лог {label.lower()}"
@@ -30,13 +36,19 @@ def process_terminal(label, command, is_server=False):
     proc = {"p": None}  # Используем словарь для замыкания
 
     def update_btn():
+        """
+        обновляет кнопку
+        """
         if proc["p"] is not None and proc["p"].poll() is None:
             start_stop_btn.text = f"Остановить {label}"
         else:
             start_stop_btn.text = f"Запустить {label}"
-        start_stop_btn.update()
+            start_stop_btn.update()
 
     def start_process(e=None):
+        """
+        запускает процесс
+        """
         if proc["p"] is not None and proc["p"].poll() is None:
             # Остановить процесс
             proc["p"].terminate()
@@ -44,12 +56,10 @@ def process_terminal(label, command, is_server=False):
             output.update()
             update_btn()
             return
-        # Запустить процесс
-        # -u для отключения буфера
         cmd = command.copy()
         if cmd[0].startswith("python"):
             cmd.insert(1, "-u")
-        proc["p"] = subprocess.Popen(
+            proc["p"] = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -57,13 +67,16 @@ def process_terminal(label, command, is_server=False):
             text=True,
             bufsize=1,
         )
-        output.value += f"{label} запущен!\n"
-        output.update()
-        update_btn()
-        threading.Thread(target=read_stdout, daemon=True).start()
-        threading.Thread(target=monitor_proc, daemon=True).start()
+            output.value += f"{label} запущен!\n"
+            output.update()
+            update_btn()
+            threading.Thread(target=read_stdout, daemon=True).start()
+            threading.Thread(target=monitor_proc, daemon=True).start()
 
     def read_stdout():
+        """
+        читает вывод
+        """
         # Чтение по строкам (работает с -u и flush=True)
         for line in proc["p"].stdout:
             output.value += line
@@ -71,12 +84,15 @@ def process_terminal(label, command, is_server=False):
         update_btn()
 
     def monitor_proc():
-        # Следим за внешним завершением процесса
+        """Следит за внешним завершением процесса"""
         while proc["p"] is not None and proc["p"].poll() is None:
             time.sleep(0.5)
         update_btn()
 
     def send_command(e=None):
+        """
+        отправляет команду
+        """
         cmd = input_field.value.strip()
         if not cmd:
             return
@@ -109,6 +125,9 @@ def process_terminal(label, command, is_server=False):
 
 
 def main(page: ft.Page):
+    """
+    главная функция
+    """
     page.title = "Race Game Launcher"
     page.window_width = 1000
     page.window_height = 600
@@ -123,8 +142,8 @@ def main(page: ft.Page):
     tabs = ft.Tabs(
         selected_index=0,
         tabs=[
-            ft.Tab(text="Сервер", content=server_terminal),
             ft.Tab(text="Клиент", content=client_terminal),
+            ft.Tab(text="Сервер", content=server_terminal),
         ],
         expand=True,
         indicator_color=(0, 0, 255),#ft.colors.BLUE,

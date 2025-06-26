@@ -1,69 +1,77 @@
-import arcade
-import arcade.gui
-from arcade.experimental.uislider import UISlider
-from arcade.gui import UIManager, UIAnchorWidget, UILabel, UIOnClickEvent
-from arcade.gui.events import UIOnChangeEvent
 import math
 import time
-import os, sys
+import os
 import socket
 import json
 import logging
-import os
-#
+import arcade
+import arcade.gui
+from arcade.experimental.uislider import UISlider
+from arcade.gui import UIAnchorWidget, UILabel
+from arcade.gui.events import UIOnChangeEvent
+import arcade.key
+import arcade.color
+from track_cords import points_tr1, points_tr2, points_tr3, points_tr4, points_tr5
+
+
 logging.basicConfig(
-    level=logging.INFO,  
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  
-    filename="game.log",  
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="game.log",
 )
 # Константы
 
 print(
-    f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]}, происходит адаптация..."
-)
+    f"Разрешение экрана: {arcade.get_display_size()[0]}x{arcade.get_display_size()[1]},\
+    происходит адаптация...")
 SCREEN_WIDTH = arcade.get_display_size()[0]
 SCREEN_HEIGHT = arcade.get_display_size()[1]
 
 
 def import_variables(filename):
-    variables = {}
+    """
+    импортирует переменные
+    """
+    vars = {}
     if filename in os.listdir("."):
         with open(filename, "r", encoding="utf-8") as file:
             for line in file:
                 key, value = line.strip().split(":")
-                variables[key] = value
-
-    return variables
+                vars[key] = value
+        del(file)
+    return vars
 
 
 MULTIPLAYER_CONFIG_NAME = "multiplayer.json"
 
 if MULTIPLAYER_CONFIG_NAME in os.listdir("."):
-    with open(MULTIPLAYER_CONFIG_NAME, "r") as file:
+    with open(MULTIPLAYER_CONFIG_NAME, "r", encoding="utf-8") as file:
         settings = json.loads(file.read())
+    del(file)
 else:
-    settings = {"host":"localhost", "port":8080}
+    settings = {"host": "localhost", "port": 8080}
 
 variables = import_variables("variables.dat")
 drift_factor = float(variables["DRIFT_FACTOR"])
 SCREEN_TITLE = "Race Game"
 MAX_SPEED = int(variables["MAX_SPEED"])
-AX = float(variables["AX"])
-FRICTION = int(variables["FRICTION"])
 g = float(variables["g"])
 mu = float(variables["mu"])
 fps = int(variables["fps"])
 mod_folder = "mods"
 
-turn_constant = 13.96*5
-click_coordinates = []
+TURN_CONSTANT = 13.96*5
 for var in variables:
-    logging.debug(f"{var}: {variables[var]}")
+    logging.debug("%s: %s", var, variables[var])
 
 
 # функции
 def sign(x):
-    return 1 if x>0 else 0 if x==0 else -1
+    """
+    возвращает знак числа
+    """
+    return 1 if x > 0 else 0 if x == 0 else -1
+
 
 def send_request(request_data: dict, host="127.0.0.1", port=8080):
     """
@@ -85,10 +93,17 @@ def send_request(request_data: dict, host="127.0.0.1", port=8080):
             return json.loads(response_bytes.decode("utf-8"))
             
         except ConnectionRefusedError:
-            logging.error(f"Не удалось подключиться к серверу {host}:{port}. В подключении отказано.")
+            logging.error(
+                "Не удалось подключиться к серверу %s:%d. В подключении отказано.", host, port)
             return {"error": "Connection refused"}
+        except socket.timeout:
+            logging.error("Время подключения вышло!")
+            return {"error": "Timeout"}
+        except json.JSONDecodeError:
+            print("Ошибочный формат вывода данных!")
+            return {"error": "Invalid JSON response"}
         except Exception as e:
-            logging.error(f"Произошла ошибка при отправке запроса: {e}")
+            logging.error("Произошла ошибка при отправке запроса: %s", e)
             return {"error": str(e)}
 
 
@@ -96,36 +111,49 @@ logging.debug("функции")
 
 
 class ModManager:
-    def __init__(self, klass, mod_folder="mods"):
+    """
+    класс менеджера модов
+    """
+    def __init__(self, klass):
+        """
+        инициализирует менеджер модов
+        """
         self.mod_folder = mod_folder
         self.mods = []
         self.klass = klass
 
     def call_func(self, obj, func_name, *args, **kwargs):
+        """
+        вызывает функцию из модов
+        """
         if func_name in dir(obj):
             func = getattr(obj, func_name)
-        else:
-            return
-        if callable(func):
-            return func(*args, **kwargs)
-        else:
-            raise AttributeError(
-                f"'{type(obj).__name__}' object has no callable attribute '{func_name}'"
-            )
+            if callable(func):
+                try:
+                    return func(*args, **kwargs)
+                finally:
+                    return
+        raise AttributeError(
+            f"'{type(obj).__name__}' object has no callable attribute '{func_name}'")
 
     def load_mod(self, name: str):
+        """
+        загужает мод
+        """
         if name.endswith(".py"):
             name = name[:-3]
         mod = __import__(f"{mod_folder}.{name}")
         return getattr(mod, name)
 
     def load(self):
+        """
+        загружает все моды
+        """
         modlist = os.listdir(self.mod_folder)
         try:
             modlist.remove("__pycache__")
-        except:
+        finally:
             pass
-
         for i in modlist:
             if i.endswith(".py"):
                 i = i[:-3]
@@ -143,179 +171,60 @@ class ModManager:
             )
 
     def call(self, func_name, *args, **kargs):
+        """
+        вызывает функцию из всех модов
+        """
         returned = []
         for i in self.mods:
             if i["active"]:
                 returned.append(
-                    self.call_func(i["mod"], func_name, self.klass, *args, **kargs)
+                    self.call_func(i["mod"], func_name,
+                                   self.klass, *args, **kargs)
                 )
         return returned
 
-    def deactivate(self): ...
+    def deactivate(self):
+        """
+        реализует отключение модов
+        """
+
+
 class RaceGame(arcade.Window):
+    """
+    отвечает за логику игры
+    """
     def __init__(self, width, height, title):
+        """
+        инициализирует класс игры
+        """
         super().__init__(
             width, height, title, fullscreen=False, resizable=True, vsync=True
         )
+        # Глобальные переменные
+        self.click_coordinates = []
+        # параметры игры
         self.set_update_rate(1 / fps)
         self.ai_list = None
-        self.player_list = arcade.SpriteList()
-        self.player_list.spatial_hash = True
+        self.player_list = arcade.SpriteList(use_spatial_hash=True)
         self.colors = ["orange", "red", "blue", "green"]
         self.players = []
-        points_tr1 = [
-            (-101, -249),
-            (80, -263),
-            (102, -103),
-            (102, 79),
-            (43, 211),
-            (-26, 262),
-            (-102, 287),
-            (-99, 101),
-            (-81, 88),
-            (-80, -66),
-            (-103, -188),
-            (-101, -250),
-        ]
-        points_tr2 = [
-            (239, 19),
-            (239, 207),
-            (2, 217),
-            (-142, 189),
-            (-439, -57),
-            (-443, -246),
-            (-397, -240),
-            (-64, 18),
-            (38, 36),
-            (236, 18),
-        ]
-        points_tr3 = [
-            (-322, -242),
-            (-317, 148),
-            (-383, 227),
-            (-500, 250),
-            (-500, 70),
-            (-498, -96),
-            (-455, -210),
-            (-350, -250),
-            (-321, -243),
-        ]
-        points_tr4 = [
-            (-408, 117),
-            (-409, 298),
-            (-538, 280),
-            (-602, 223),
-            (-633, 120),
-            (-652, -215),
-            (-640, -288),
-            (-453, -268),
-            (-475, -175),
-            (-449, 1),
-            (-451, 112),
-            (-407, 116),
-        ]
-        points_tr5 = [
-            (-456, 4),
-            (-637, -13),
-            (-627, -85),
-            (-516, -169),
-            (-384, -188),
-            (-194, -175),
-            (363, -188),
-            (549, -171),
-            (619, -107),
-            (634, -15),
-            (266, -2),
-            (-27, 13),
-            (-456, 6),
-        ]
-        self.tr1 = arcade.Sprite("sprites/tr1.png")
-        self.tr1.set_hit_box(points_tr1)
-        self.tr1.center_x = SCREEN_WIDTH / 2 + 522  # стандартно SCREEN_WIDTH/2+522
-        self.tr1.center_y = SCREEN_HEIGHT / 2 + 52  # стандартно SCREEN_HEIGHT/2+52
-        self.tr2 = arcade.Sprite("sprites/tr2.png")
-        self.tr2.set_hit_box(points_tr2)
-        self.tr2.center_x = SCREEN_WIDTH / 2 + 184  # стандартно SCREEN_WIDTH/2+184
-        self.tr2.center_y = SCREEN_HEIGHT / 2 + 134  # стандартно SCREEN_HEIGHT/2+134
-        self.tr3 = arcade.Sprite("sprites/tr3.png")
-        self.tr3.set_hit_box(points_tr3)
-        self.tr3.center_x = SCREEN_WIDTH / 2 + 61  # стандартно SCREEN_WIDTH/2+61
-        self.tr3.center_y = SCREEN_HEIGHT / 2 + 127  # стандартно SCREEN_HEIGHT/2+127
-        self.tr4 = arcade.Sprite("sprites/tr4.png")
-        self.tr4.set_hit_box(points_tr4)
-        self.tr4.center_x = SCREEN_WIDTH / 2 - 31  # стандартно SCREEN_WIDTH/2-31
-        self.tr4.center_y = SCREEN_HEIGHT / 2 + 78  # стандартно SCREEN_HEIGHT/2+78
-        self.tr5 = arcade.Sprite("sprites/tr5.png")
-        self.tr5.set_hit_box(points_tr5)
-        self.tr5.center_x = SCREEN_WIDTH / 2 - 30  # стандартно SCREEN_WIDTH/2-30
-        self.tr5.center_y = SCREEN_HEIGHT / 2 - 195  # стандартно SCREEN_HEIGHT/2-195
-        self.track = arcade.SpriteList()
-        self.track.append(self.tr1)
-        self.track.append(self.tr2)
-        self.track.append(self.tr3)
-        self.track.append(self.tr4)
-        self.track.append(self.tr5)
-        logging.debug("инициализаия трека")
-        # меню
+
         self.manager = arcade.gui.UIManager()
-        self.manager.enable()
-        arcade.set_background_color((0, 70, 0))
+        self.managers = arcade.gui.UIManager()
+        self._track_init()
+        self._menu_init()
+        
+        self.fps = 0
         self.game_settings = False
         self.game = False
         self.menu = True
         self.settings = False
-        self.v_box = arcade.gui.UIBoxLayout()
-        start_button = arcade.gui.UITextureButton(
-            texture=arcade.load_texture(
-                ":resources:onscreen_controls/flat_dark/play.png"
-            )
-        )
-        self.v_box.add(start_button.with_space_around(bottom=20))
 
-        settings_button = arcade.gui.UITextureButton(
-            texture=arcade.load_texture(
-                ":resources:onscreen_controls/flat_dark/gear.png"
-            )
-        )
-        self.v_box.add(settings_button.with_space_around(bottom=20))
-
-        quit_button = arcade.gui.UITextureButton(
-            texture=arcade.load_texture(
-                ":resources:onscreen_controls/flat_dark/close.png"
-            )
-        )
-        self.v_box.add(quit_button.with_space_around(bottom=20))
-
-        @start_button.event("on_click")
-        def wrap(event):
-            if self.menu:
-                self.on_start(event)
-
-        @quit_button.event("on_click")
-        def wrap(event):
-            if self.menu:
-                print("выход")
-                arcade.exit()
-
-        @settings_button.event("on_click")
-        def wrap(event):
-            if self.menu:
-                self.show_start_window(event)
-
-        self.manager.add(
-            arcade.gui.UIAnchorWidget(
-                anchor_x="center_x", anchor_y="center_y", child=self.v_box
-            )
-        )
-        self.time_race = 1
-        logging.debug("инициализация меню")
         # физика
-        self.player_list = arcade.SpriteList()
-        self.wall_list = None
+        self.wall_list = arcade.SpriteList()
         self.player_sprite = None
         self.physics_engine = None
-        self.barrier_list = arcade.SpriteList()
-        self.barrier_list.spatial_hash = True
+        self.barrier_list = arcade.SpriteList(use_spatial_hash=True)
         logging.debug("инициализация физики")
         # музыка и эффекты
         self.music = False
@@ -328,10 +237,12 @@ class RaceGame(arcade.Window):
         self.cur_player = 0
         self.debug = False
         self.start_time = time.time()
+        self.time_race = 1
         # print(f"игрок {self.id}")
         self.multiplayer = False
         self.camera = arcade.Camera()
         # повтор
+        self._state = {}
         self.replay_state = {
             "record": False,
             "play": False,
@@ -374,27 +285,107 @@ class RaceGame(arcade.Window):
             {"forward": False, "backward": False, "mleft": False, "mright": False},
             {"forward": False, "backward": False, "mleft": False, "mright": False},
         ]
-        self.modManager = ModManager(self)
-        self.modManager.load()
-        self.modManager.call("__init__")
-        logging.info(f"мультиплеер: {self.multiplayer}")
+        self.send = []
+        self.coordinates = [
+            (SCREEN_WIDTH / 2 + 517, SCREEN_HEIGHT / 2 - 336),
+            (SCREEN_WIDTH / 2 + 547, SCREEN_HEIGHT / 2 - 276),
+            (SCREEN_WIDTH / 2 + 517, SCREEN_HEIGHT / 2 - 216),
+            (SCREEN_WIDTH / 2 + 547, SCREEN_HEIGHT / 2 - 156),
+        ]
+        self.fps = 0
+        # моды
+        self.mod_manager = ModManager(self)
+        self.mod_manager.load()
+        self.mod_manager.call("__init__")
+        logging.info("мультиплеер: %s", self.multiplayer)
         logging.info("инициализация завершена")
 
-    def switch_layout(self, layout):
-        pass
+    def _track_init(self):
+        self.tr1 = arcade.Sprite("sprites/tr1.png")
+        self.tr1.set_hit_box(points_tr1)
+        self.tr1.center_x = 1203  # стандартно SCREEN_WIDTH/2+522
+        self.tr1.center_y = 436  # стандартно SCREEN_HEIGHT/2+52
+        self.tr2 = arcade.Sprite("sprites/tr2.png")
+        self.tr2.set_hit_box(points_tr2)
+        self.tr2.center_x = 867  # стандартно SCREEN_WIDTH/2+184
+        self.tr2.center_y = 518  # стандартно SCREEN_HEIGHT/2+134
+        self.tr3 = arcade.Sprite("sprites/tr3.png")
+        self.tr3.set_hit_box(points_tr3)
+        self.tr3.center_x = 745  # стандартно SCREEN_WIDTH/2+61
+        self.tr3.center_y = 511  # стандартно SCREEN_HEIGHT/2+127
+        self.tr4 = arcade.Sprite("sprites/tr4.png")
+        self.tr4.set_hit_box(points_tr4)
+        self.tr4.center_x = 652  # стандартно SCREEN_WIDTH/2-31
+        self.tr4.center_y = 462  # стандартно SCREEN_HEIGHT/2+78
+        self.tr5 = arcade.Sprite("sprites/tr5.png")
+        self.tr5.set_hit_box(points_tr5)
+        self.tr5.center_x = 653  # стандартно SCREEN_WIDTH/2-30
+        self.tr5.center_y = 189  # стандартно SCREEN_HEIGHT/2-195
+        self.track = arcade.SpriteList()
+        self.track.append(self.tr1)
+        self.track.append(self.tr2)
+        self.track.append(self.tr3)
+        self.track.append(self.tr4)
+        self.track.append(self.tr5)
+        logging.debug("инициализаия трека")
+
+    def _menu_init(self):
+        # меню
+        self.manager.enable()
+        arcade.set_background_color((0, 70, 0))
+        self.v_box = arcade.gui.UIBoxLayout()
+        start_button = arcade.gui.UITextureButton(texture=arcade.load_texture(
+            ":resources:onscreen_controls/flat_dark/play.png"))
+        self.v_box.add(start_button.with_space_around(bottom=20))
+
+        settings_button = arcade.gui.UITextureButton(texture=arcade.load_texture(
+            ":resources:onscreen_controls/flat_dark/gear.png"))
+        self.v_box.add(settings_button.with_space_around(bottom=20))
+
+        quit_button = arcade.gui.UITextureButton(texture=arcade.load_texture(
+            ":resources:onscreen_controls/flat_dark/close.png"))
+        self.v_box.add(quit_button.with_space_around(bottom=20))
+
+        @start_button.event("on_click")
+        def wrap_start_button(event):
+            if self.menu:
+                self.on_start(event)
+
+        @quit_button.event("on_click")
+        def wrap_quit_button(event):
+            if self.menu:
+                print("выход")
+                arcade.exit()
+
+        @settings_button.event("on_click")
+        def wrap_settings_button(event):
+            if self.menu:
+                self.show_start_window(event)
+
+        self.manager.add(arcade.gui.UIAnchorWidget(anchor_x="center_x",
+                                                   anchor_y="center_y",
+                                                   child=self.v_box))
+        logging.debug("инициализация меню")
 
     def menu_music(self):
-        mus = arcade.play_sound(self.music_in_menu)
-        if not self.music:
+        """
+        проигрывает музыку в меню
+        """
+        if self.music_in_menu:
+            mus = arcade.play_sound(self.music_in_menu)
+        elif not self.music:
             arcade.stop_sound(mus)
 
     def show_start_window(self, event):
+        """
+        показывает меню настроек
+        """
         logging.debug("меню настроек")
-        arcade.play_sound(self.start)
-        self.game_settings = True
-        self.menu = False
+        if self.start:
+            arcade.play_sound(self.start)
+            self.game_settings = True
+            self.menu = False
 
-        self.managers = UIManager()
         self.managers.enable()
         box = arcade.gui.UIBoxLayout()
         ui_slider = UISlider(
@@ -403,11 +394,11 @@ class RaceGame(arcade.Window):
         label = UILabel(text=f"игроков:{ui_slider.value:1.0f}")
 
         @ui_slider.event()
-        def on_change(event: UIOnChangeEvent):
+        def players_change(event: UIOnChangeEvent):
             if self.game_settings:
                 label.text = f"игроков:{ui_slider.value:1.0f}"
                 label.fit_content()
-                self.players_count = round(ui_slider.value)
+                self.players_count = round(ui_slider.value or 0)
 
         box.add(child=label.with_space_around(left=100, bottom=10))
         box.add(child=ui_slider.with_space_around(left=100, bottom=20))
@@ -416,7 +407,7 @@ class RaceGame(arcade.Window):
                 ":resources:onscreen_controls/flat_dark/unchecked.png"
             )
         )
-        label_d = UILabel(text=f"режим отладки")
+        label_d = UILabel(text="режим отладки")
         back = arcade.gui.UITextureButton(
             texture=arcade.load_texture(
                 ":resources:onscreen_controls/flat_dark/left.png"
@@ -430,7 +421,7 @@ class RaceGame(arcade.Window):
         )
 
         @sound.event("on_click")
-        def on_change(event):
+        def sound_click(event):
             if self.game_settings:
                 self.music = not self.music
                 if self.debug:
@@ -448,7 +439,7 @@ class RaceGame(arcade.Window):
                 self.set_menu()
 
         @debug_mode.event("on_click")
-        def on_change(event):
+        def debug_change(event):
             if self.game_settings:
                 self.debug = not self.debug
                 if self.debug:
@@ -467,7 +458,7 @@ class RaceGame(arcade.Window):
         )
 
         @replay_cap.event("on_click")
-        def on_change(event):
+        def replay_recorde_change(event):
             if self.game_settings:
                 self.replay_state["record"] = not self.replay_state["record"]
                 if self.replay_state["record"]:
@@ -486,7 +477,7 @@ class RaceGame(arcade.Window):
         )
 
         @replay_play.event("on_click")
-        def on_change(event):
+        def replay_play_change(event):
             if self.game_settings:
                 self.replay_state["play"] = not self.replay_state["play"]
                 if self.replay_state["play"]:
@@ -498,11 +489,12 @@ class RaceGame(arcade.Window):
                         ":resources:onscreen_controls/flat_dark/unchecked.png"
                     )
 
-        # self.managers.add(UIAnchorWidget(child=sound, align_y=90)) #TODO add sound controller
+        # self.managers.add(UIAnchorWidget(child=sound, align_y=90)) #
         box.add(child=label_d.with_space_around(left=100, bottom=20))
         box.add(child=debug_mode.with_space_around(left=100, bottom=20))
         box.add(
-            child=UILabel(text="запись повтора").with_space_around(left=100, bottom=10)
+            child=UILabel(text="запись повтора").with_space_around(
+                left=100, bottom=10)
         )
         box.add(child=replay_cap.with_space_around(left=100, bottom=20))
         box.add(
@@ -514,70 +506,79 @@ class RaceGame(arcade.Window):
         label_ai = UILabel(text="в этой версии нет ботов")
         box.add(child=label_ai.with_space_around(left=100, bottom=20))
         box.add(child=back.with_space_around(left=100, bottom=20))
-        w, h = super().width, super().height
         self.managers.add(
             UIAnchorWidget(anchor_x="center_x", anchor_y="center_y", child=box)
         )
         logging.info("загрузка настроек завершена")
 
     def on_start(self, event):
+        """
+        запускает игру
+        """
         logging.debug("запуск игры")
         self.game_settings = False
         self.frame = 0
         if self.menu:
             self.cur_player = 0
-            self.player_list = []
             self.players = []
             self.setup()
-            arcade.play_sound(self.start)
+            if self.start:
+                arcade.play_sound(self.start)
             for player in range(len(self.players)):
-                id = int(player)
-                player = self.players[id]
-                player["sprite"].center_x, player["sprite"].center_y = self.coordinates[
-                    id
-                ]
+                player_id = int(player)
+                player = self.players[player_id]
+                player["sprite"].center_x, player["sprite"].center_y = self.coordinates[player_id]
                 player["speed"] = 0
                 player["current_angle"] = 90
-                logging.debug(f"игрок {id} инициализирован")
+                logging.debug("игрок %d инициализирован", player_id)
             self.game = True
             self.menu = False
             self.start_time = time.time()
-        self.modManager.call("start")
+        self.mod_manager.call("start")
 
     def exit(self, event):
-        arcade.play_sound(self.start)
+        """
+        выходит из игры
+        """
+        if self.start:
+            arcade.play_sound(self.start)
         logging.info("выход")
         if self.menu:
             arcade.close_window()
 
     def setup(self):
-        self.coordinates = [
-            (SCREEN_WIDTH / 2 + 517, SCREEN_HEIGHT / 2 - 336),
-            (SCREEN_WIDTH / 2 + 547, SCREEN_HEIGHT / 2 - 276),
-            (SCREEN_WIDTH / 2 + 517, SCREEN_HEIGHT / 2 - 216),
-            (SCREEN_WIDTH / 2 + 547, SCREEN_HEIGHT / 2 - 156),
-        ]
+        """
+        спавнит игроков
+        """
         self.coordinates.reverse()
         colors = [(255, 100, 100), (255, 0, 0), (0, 0, 255), (0, 255, 0)]
-        self.player_list = arcade.SpriteList()
-        self.wall_list = arcade.SpriteList()
+        self.player_list.clear()
+        self.wall_list.clear()
 
         if self.multiplayer:
             logging.info("Попытка подключения к многопользовательской игре...")
-            join_response = send_request({"action": "join"}, host=settings.get('host', '127.0.0.1'), port=settings.get('port', 8080))
+            join_response = send_request({"action": "join"}, host=settings.get(
+                'host', '127.0.0.1'), port=settings.get('port', 8080))
             
-            if "error" in join_response:
-                logging.error(f"Не удалось подключиться: {join_response['error']}. Переключение в одиночный режим.")
-                self.multiplayer = False # Возвращаемся в одиночный режим
+            if join_response and "error" in join_response:
+                logging.error(
+                    "Не удалось подключиться: %s. Переключение в одиночный режим.", join_response['error'])
+                self.multiplayer = False  # Возвращаемся в одиночный режи
                 self.id = 0
                 self.players_count = 1
-            else:
+            elif join_response:
                 self.id = join_response.get("id", 0)
                 initial_state = join_response.get("state", [])
                 self.players_count = len(initial_state)
                 # Сохраняем начальное состояние для дальнейшего использования
                 self.multiplayer_controls = initial_state
-                logging.info(f"Успешное подключение! Мой ID: {self.id}. Всего игроков в state: {self.players_count}")
+                logging.info("Успешное подключение! Мой ID: %d. Всего игроков в state: %d", self.id, self.players_count)
+            else: # Случай, когда join_response is None
+                logging.error(
+                    "Не удалось получить ответ от сервера. Переключение в одиночный режим.")
+                self.multiplayer = False
+                self.id = 0
+                self.players_count = 1
         else:
             self.id = 0
 
@@ -587,7 +588,6 @@ class RaceGame(arcade.Window):
             )
             player_sprite.center_x, player_sprite.center_y = self.coordinates[i]
             player_sprite.color = colors[i]
-            player_sprite.id = i
             self.player_list.append(player_sprite)
             self.players.append(
                 {
@@ -694,13 +694,16 @@ class RaceGame(arcade.Window):
         ]
 
         out_wall_sprite = arcade.Sprite()
-        out_wall_sprite._points = out_points
+        out_wall_sprite.set_hit_box(out_points)
         self.wall_list.append(out_wall_sprite)
         in_wall_sprite = arcade.Sprite()
-        in_wall_sprite._points = in_points
+        in_wall_sprite.set_hit_box(in_points)
         self.wall_list.append(in_wall_sprite)
 
     def set_menu(self):
+        """
+        переходит в меню
+        """
         self.game = False
         self.menu = True
         self.managers.disable()
@@ -708,14 +711,15 @@ class RaceGame(arcade.Window):
         self.game_settings = False
 
     def on_draw(self):
-        global click_coordinates
+        """
+        рендерит игру
+        """
         arcade.start_render()
+        self.clear()
         if self.game_settings:
-            self.clear
             self.managers.draw()
             # self.manager.draw()
         elif self.game:
-            self.clear
             if self.multiplayer:
                 self.camera.use()
             # arcade.draw_line_strip(sprites, (0, 122, 255), 4)
@@ -723,18 +727,18 @@ class RaceGame(arcade.Window):
             self.player_list.draw()
             for player in self.players:
                 arcade.draw_text(
-                    f"игрок {player['sprite'].id + 1}",
+                    f"игрок {player['id'] + 1}",
                     player["sprite"].center_x,
                     player["sprite"].center_y + 20,
                     player["sprite"].color,
                 )
                 self.plspeed.append(round(player["speed"]))
         elif self.menu:
-            self.clear()
             self.manager.draw()
         if self.debug and self.game:
-            if click_coordinates:
-                arcade.draw_line_strip(click_coordinates, arcade.color.GREEN, 4)
+            if self.click_coordinates:
+                arcade.draw_line_strip(
+                    self.click_coordinates, arcade.color.GREEN, 4)
             self.barrier_list.draw_hit_boxes((255, 0, 0), 3)
             self.track.draw_hit_boxes((255, 0, 0), 3)
             self.player_list.draw_hit_boxes((200, 200, 200), 3)
@@ -743,7 +747,7 @@ class RaceGame(arcade.Window):
             x = self.camera.position[0]
             y = self.camera.position[1]
             arcade.draw_text(
-                f"FPS:{self.FPS}",
+                f"FPS:{self.fps}",
                 start_x=10 + x,
                 start_y=SCREEN_HEIGHT - 120 + y,
                 color=(255, 255, 255),
@@ -771,7 +775,7 @@ class RaceGame(arcade.Window):
                 font_size=14,
             )
             arcade.draw_text(
-                f"lim_k: {30 / self.FPS}",
+                f"lim_k: {30 / self.fps}",
                 start_x=10 + x,
                 start_y=SCREEN_HEIGHT - 200 + y,
             )
@@ -789,14 +793,18 @@ class RaceGame(arcade.Window):
                 ],
                 color=(0, 0, 255),
             )
-        self.modManager.call("draw")
+        self.mod_manager.call("draw")
         arcade.finish_render()
 
     def explode(self, player):
-        arcade.play_sound(self.explosion)
-        player["explosion_time"] = 0.0
+        """
+        взрывает машину
+        """
+        if self.explosion:
+            arcade.play_sound(self.explosion)
+            player["explosion_time"] = 0.0
 
-    def calculate_approach_speed(self, v_a, alpha, v_b, beta, c_a: list, c_b: list):
+    def calculate_approach_speed(self, v_a, alpha, v_b, beta, c_a: tuple, c_b: tuple):
         """
         Рассчитывает скорость сближения двух объектов.
 
@@ -815,7 +823,8 @@ class RaceGame(arcade.Window):
         v_a_vector = (v_a * math.cos(alpha_rad), v_a * math.sin(alpha_rad))
         v_b_vector = (v_b * math.cos(beta_rad), v_b * math.sin(beta_rad))
 
-        v_ab_vector = (v_a_vector[0] - v_b_vector[0], v_a_vector[1] - v_b_vector[1])
+        v_ab_vector = (v_a_vector[0] - v_b_vector[0],
+                       v_a_vector[1] - v_b_vector[1])
 
         if math.sqrt(r[0] ** 2 + r[1] ** 2) != 0:
             approach_speed = (
@@ -825,16 +834,10 @@ class RaceGame(arcade.Window):
             return 0
         return approach_speed
 
-    def update_send(self):
-        player = self.players[self.id]
-        self.send = multiplayer.bytelib.to_bytes(
-            self.id,
-            player["forward"],
-            player["backward"],
-            player["mleft"],
-            player["mright"],)
-
     def check_for_collision(self):
+        """
+        проверяет столкновения объектов
+        """
         for i, player in enumerate(self.players):
             current_sprite = player["sprite"]
             for j, other_player in enumerate(self.players):
@@ -865,11 +868,14 @@ class RaceGame(arcade.Window):
                         other_player["collisions_to_explosion"] -= approach_speed
 
     def end_game(self):
+        """
+        заканчивает игру
+        """
         if self.replay_state["record"]:
-            with open(self.replay_state["name"], "w") as f:
+            with open(self.replay_state["name"], "w", encoding="utf-8") as f:
                 json.dump(self.replay_state["replay"], f)
         best_player = max(self.players, key=lambda player: player["laps"])
-        message = f"Игрок с наилучшим результатом: {best_player['sprite'].id + 1}, его результат - {best_player['laps']}"
+        message = f"Игрок с наилучшим результатом: {best_player['id'] + 1}, его результат - {best_player['laps']}"
         messagebox = arcade.gui.UIMessageBox(
             width=300,
             height=200,
@@ -880,36 +886,41 @@ class RaceGame(arcade.Window):
         self.set_menu()
 
     def update_pos(self):
+        """
+        обновляет направление игроков
+        """
         for player in self.players:
-            ID = player["sprite"].id
-            # if ID == self.id:
+            player_id = player["id"]
+            # if player_id == self.id:
             #   continue
-            for control_key, control_value in self.multiplayer_controls[ID].items():
-                player[control_key] = self.multiplayer_controls[ID][control_key]
-
-    def get_state(self):
-        pass
+            for control_key in self.multiplayer_controls[player_id]:
+                player[control_key] = self.multiplayer_controls[player_id][control_key]
 
     def load_replay(self, name):
-        with open(name, "r") as f:
+        """
+        загружает повтор
+        """
+        with open(name, "r", encoding="utf-8") as f:
             self.replay_state["replay"] = json.load(f)
 
-    def drift_angle(self, angle, speed, dir, angle_speed):
-        da = angle_speed * dir
+    def drift_angle(self, angle, speed, direction, angle_speed):
+        """
+        возвращает угол дрифта
+        """
+        da = angle_speed * direction
         if da > 180:
             da -= 360
         elif da < -180:
             da += 360
         manuverability = max(0.4, 0.2 + 0.9 - abs(speed) / 1.5)
-        max_turn = 5 * (1 - manuverability) * 10  # Максимальный поворот в градусах
+        # Максимальный поворот в градусах
+        max_turn = 5 * (1 - manuverability) * 10
         turn_amount = max(-max_turn, min(max_turn, da * (1 - manuverability)))
         angle += turn_amount
         return angle % 360
-
     def update(self, delta_time, ang_sp=4):
-        global AX
         self.menu_music()
-        self.FPS = 1 / delta_time
+        self.fps = 1 / delta_time
         if self.game:
             spl = self.players[self.id]["sprite"]
             self.camera.move_to(
@@ -936,15 +947,14 @@ class RaceGame(arcade.Window):
                     if len(server_state) == len(self.multiplayer_controls):
                         self.multiplayer_controls = server_state
                 elif response and "error" in response:
-                    logging.warning(f"Ошибка от сервера: {response['error']}")
+                    logging.warning("Ошибка от сервера: %s", response['error'])
             
             # Вне зависимости от режима, обновляем состояние игроков на основе ввода
             self.update_pos()
 
             if self.replay_state["record"]:
                 state = {}
-            for i in range(len(self.players)):
-                player = self.players[i]
+            for i, player in enumerate(self.players):
                 if self.replay_state["record"]:
                     state[i] = (
                         player["forward"],
@@ -965,29 +975,29 @@ class RaceGame(arcade.Window):
                 self.physics_engine = arcade.PhysicsEngineSimple(
                     player["sprite"], self.player_sprite
                 )
-                ang_sp = sign(player['speed'])*math.sqrt(player['speed'])*turn_constant
+                ang_sp = sign(player['speed'])*math.sqrt(player['speed'])*TURN_CONSTANT
                 self.player = []
                 self.player.append(player["sprite"])
-                AX = 0.005 * player["speed"] ** 2 + 0.3
+                ax = 0.005 * player["speed"] ** 2 + 0.3
                 if arcade.check_for_collision_with_list(player["sprite"], self.track):
-                    FRICTION = 0.05
+                    friction = 0.05
                 else:
-                    FRICTION = 0.8
+                    friction = 0.8
                 if player["mleft"]:
                     player["current_angle"] += ang_sp*delta_time
                 elif player["mright"]:
                     player["current_angle"] -= ang_sp*delta_time
                 if player["forward"]:
                     if player["speed"] <= MAX_SPEED:
-                        player["speed"] += AX
+                        player["speed"] += ax 
                 elif player["backward"]:
                     if player["speed"] > 0:
-                        player["speed"] -= AX / 3
+                        player["speed"] -= ax / 3
                     elif -1 <= player["speed"] < 0:
-                        player["speed"] -= AX / 3
+                        player["speed"] -= ax / 3
                     else:
                         player["speed"] += -1 - player["speed"]
-                player["speed"] -= player["speed"] * (FRICTION)
+                player["speed"] -= player["speed"] * (friction)
                 if player["collisions_to_explosion"] <= 0:
                     player["speed"] = 0
                     if not player["exploded"]:
@@ -1049,39 +1059,32 @@ class RaceGame(arcade.Window):
             self.camera.move((0, 0))
         if (
             time.time() - self.start_time > self.time_race * 60 and self.game
-        ):  # and False:  # TODO добавить ограничение времени
+        ):  # and False:  # 
             self.end_game()
-        self.modManager.call("update", delta_time)
-
-    def cor(self):
-        self.update_send()
-        # send_request(host=settings['host'], port=settings["port"],request=self.send)#TODO fix server
-
+        self.mod_manager.call("update", delta_time)
     def on_mouse_press(self, x, y, button, modifiers):
-        global click_coordinates
+        """
+        обрабатывает нажатия кнопок мыши
+        """
         if self.debug:
             if button == arcade.MOUSE_BUTTON_LEFT:
                 # Добавление координат левого клика в список
-                click_coordinates.append((x, y))
+                self.click_coordinates.append((x, y))
             elif button == arcade.MOUSE_BUTTON_MIDDLE:
-                click_coordinates = click_coordinates[:-1]
+                self.click_coordinates = self.click_coordinates[:-1]
             elif button == arcade.MOUSE_BUTTON_RIGHT:
                 # Вывод списка координат в файл, разделяя точками, и переход на новую строку
-                with open("click_coordinates.txt", "a") as file:
+                with open("click_coordinates.txt", "a", encoding="utf-8") as file:
                     file.write(
-                        "; ".join(
-                            f"{coord[0]} {coord[1]}" for coord in click_coordinates
-                        )
-                        + "\n"
-                    )
-                click_coordinates = []  # Очистка списка после записи
+                        "; ".join(f"{coord[0]} {coord[1]}" for coord in self.click_coordinates) + "\n")
+                self.click_coordinates = []  # Очистка списка после записи
+                del file
 
-    def set_menu(self):
-        self.game_settings = False
-        self.game = False
-        self.menu = True
-
-    def on_key_press(self, key, modifiers):
+    def on_key_press(self, symbol, modifiers):
+        """
+        обрабатывает нажатия клавиш
+        """
+        key = symbol
         if key == arcade.key.Q:
             self.exit(None)
         if key == arcade.key.TAB and self.game:
@@ -1090,33 +1093,33 @@ class RaceGame(arcade.Window):
         if key == arcade.key.ESCAPE:
             self.set_menu()
         for player in self.players:
-            if (player["sprite"].id == self.id and self.multiplayer) or not self.multiplayer:
-                for control_key, control_value in self.controls[player["sprite"].id].items():
+            if (player["id"] == self.id and self.multiplayer) or not self.multiplayer:
+                for control_key, control_value in self.controls[player["id"]].items():
                     if key == control_key:
-                        self.multiplayer_controls[player["sprite"].id][
-                            control_value
-                        ] = True
+                        self.multiplayer_controls[player["id"]][control_value] = True
                         # player[control_value] = True
-        print(self.multiplayer_controls)
-        self.modManager.call("on_key_press", key, modifiers)
+        self.mod_manager.call("on_key_press", key, modifiers)
 
-    def on_key_release(self, key, modifiers):
+    def on_key_release(self, symbol, modifiers):
+        """
+        обрабатывает отпускание клавиш
+        """
+        key = symbol
         for player in self.players:
-            for control_key, control_value in self.controls[
-                player["sprite"].id
-            ].items():
+            for control_key, control_value in self.controls[player["id"]].items():
                 if key == control_key:
-                    self.multiplayer_controls[player["sprite"].id][
-                        control_value
-                    ] = False
+                    self.multiplayer_controls[player["id"]][control_value] = False
                     # player[control_value] = False
-        self.modManager.call("on_key_release", key, modifiers)
+        self.mod_manager.call("on_key_release", key, modifiers)
 
 
 # Основная функция
 def main():
+    """
+    запускает игру
+    """
     game = RaceGame(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
-    arcade.run()
+    game.run()
 
 
 if __name__ == "__main__":

@@ -11,4 +11,3 @@ typing_extensions~=4.12.2
 pycparser~=2.22
 packaging~=24.2
 fonttools~=4.56.0
-flet
